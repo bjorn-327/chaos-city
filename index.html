@@ -1,0 +1,1249 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Chaos City Test</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Nunito:wght@600;800;900&display=swap">
+<style>
+/* Layout: one full-screen city canvas, HUD floats on top, menus slide over as cartoon cards. Single bright look on purpose. */
+:root{
+  --ink:#1f1830;
+  --paper:#fff6df;
+  --sun:#ffc93c;
+  --fire:#ff5a36;
+  --cop:#3a6df0;
+  --mint:#21c29b;
+  --plum:#6a4c93;
+  --muted:#6e6283;
+  --display:"Lilita One","Arial Rounded MT Bold","Trebuchet MS",sans-serif;
+  --body:"Nunito","Avenir Next","Segoe UI",system-ui,sans-serif;
+  color-scheme:dark;
+}
+[hidden]{display:none!important}
+html,body{height:100%;overflow:hidden;background:var(--ink);color:var(--ink);font-family:var(--body);-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;touch-action:none}
+#app{position:fixed;inset:0;overflow:hidden}
+#cv{position:absolute;inset:0;width:100%;height:100%;display:block;background:#2a2340}
+button{font-family:var(--body);font-weight:800;cursor:pointer;border:3px solid var(--ink);border-radius:14px;background:var(--paper);color:var(--ink);font-size:16px;padding:10px 16px;box-shadow:0 4px 0 var(--ink);transition:transform .08s}
+button:active{transform:translateY(3px);box-shadow:0 1px 0 var(--ink)}
+button:focus-visible{outline:3px solid var(--sun);outline-offset:2px}
+.big{background:var(--sun);font-family:var(--display);font-weight:400;font-size:24px;letter-spacing:.5px;padding:12px 26px}
+
+/* HUD */
+#hud{position:absolute;left:0;right:0;top:0;pointer-events:none;padding:calc(8px + env(safe-area-inset-top,0px)) max(10px,env(safe-area-inset-right,0px)) 0 max(10px,env(safe-area-inset-left,0px));display:flex;flex-direction:column;gap:6px;align-items:flex-start}
+.hudrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.chip{background:var(--paper);border:3px solid var(--ink);border-radius:12px;padding:4px 10px;font-weight:900;font-size:16px;box-shadow:0 3px 0 var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap}
+#lives{letter-spacing:2px}
+#timer.low{background:var(--fire);color:#fff}
+#pauseBtn{pointer-events:auto;padding:4px 12px;font-size:16px;border-radius:12px;box-shadow:0 3px 0 var(--ink)}
+#request{background:var(--ink);color:var(--paper);border:3px solid var(--paper);border-radius:12px;padding:5px 12px;font-weight:800;font-size:15px;max-width:min(520px,62vw)}
+#meter.warn{background:var(--sun)}
+#meter.danger{background:var(--fire);color:#fff}
+
+/* touch controls */
+#touch{position:absolute;inset:0;pointer-events:none}
+#stick{position:absolute;width:120px;height:120px;margin:-60px 0 0 -60px;border-radius:50%;border:3px solid rgba(255,246,223,.7);background:rgba(31,24,48,.25)}
+#knob{position:absolute;left:50%;top:50%;width:54px;height:54px;margin:-27px 0 0 -27px;border-radius:50%;background:var(--paper);border:3px solid var(--ink)}
+.actbtn{position:absolute;pointer-events:auto;border-radius:50%;font-family:var(--display);font-weight:400;display:grid;place-items:center;text-align:center;line-height:1}
+#act{width:96px;height:96px;right:max(22px,calc(env(safe-area-inset-right,0px) + 14px));bottom:calc(26px + env(safe-area-inset-bottom,0px));background:var(--sun);font-size:17px}
+#act2{width:66px;height:66px;right:max(128px,calc(env(safe-area-inset-right,0px) + 120px));bottom:calc(30px + env(safe-area-inset-bottom,0px));background:var(--fire);color:#fff;font-size:13px}
+#keyhint{position:absolute;left:max(12px,env(safe-area-inset-left,0px));bottom:calc(10px + env(safe-area-inset-bottom,0px));color:var(--paper);font-weight:800;font-size:13px;opacity:.85;pointer-events:none;text-shadow:0 2px 0 var(--ink)}
+
+@media (pointer:coarse){#keyhint{display:none}}
+#banner{position:absolute;left:50%;top:38%;transform:translate(-50%,-50%);font-family:var(--display);font-size:clamp(34px,9vw,72px);color:var(--sun);-webkit-text-stroke:3px var(--ink);paint-order:stroke fill;text-shadow:0 6px 0 var(--ink);pointer-events:none;white-space:nowrap;opacity:0}
+#banner.show{animation:pop 1.3s ease-out}
+@keyframes pop{0%{opacity:0;transform:translate(-50%,-50%) scale(.4)}15%{opacity:1;transform:translate(-50%,-50%) scale(1.15)}30%{transform:translate(-50%,-50%) scale(1)}80%{opacity:1}100%{opacity:0;transform:translate(-50%,-60%) scale(1)}}
+#flash{position:absolute;inset:0;background:var(--fire);opacity:0;pointer-events:none}
+#flash.on{animation:fl .6s}
+@keyframes fl{0%{opacity:.45}100%{opacity:0}}
+
+/* screens */
+.screen{position:absolute;inset:0;overflow-y:auto;background:rgba(31,24,48,.82);display:flex;justify-content:center;align-items:flex-start;padding-block:calc(18px + env(safe-area-inset-top,0px)) calc(24px + env(safe-area-inset-bottom,0px));padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));touch-action:pan-y}
+.card{background:var(--paper);border:4px solid var(--ink);border-radius:24px;box-shadow:0 8px 0 var(--ink);padding:20px;width:100%;max-width:720px;display:flex;flex-direction:column;gap:14px;margin-block:auto}
+h1,h2{font-family:var(--display);font-weight:400;margin:0;line-height:1;text-wrap:balance}
+h1{font-size:clamp(44px,11vw,76px);color:var(--sun);-webkit-text-stroke:3px var(--ink);paint-order:stroke fill;text-shadow:0 6px 0 var(--ink);transform:rotate(-2deg)}
+h2{font-size:28px}
+p{margin:0;line-height:1.45;max-width:62ch}
+.lede{font-weight:800;color:var(--muted)}
+.label{font-weight:900;text-transform:uppercase;letter-spacing:.08em;font-size:12px;color:var(--muted)}
+.roles{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:10px}
+.role{display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 6px;border-radius:16px;background:#fff;font-size:15px}
+.role canvas{width:64px;height:64px}
+.role small{font-weight:700;font-size:12px;color:var(--muted);line-height:1.25}
+.role[aria-pressed="true"]{background:var(--sun);transform:translateY(-2px)}
+.seg{display:flex;flex-wrap:wrap;gap:8px}
+.seg button{padding:7px 12px;font-size:14px;border-radius:12px;box-shadow:0 3px 0 var(--ink)}
+.seg button[aria-pressed="true"]{background:var(--mint);color:#fff}
+.opts{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.opt{display:flex;flex-direction:column;gap:6px}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.coinbadge{font-weight:900;font-size:16px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px}
+.stat{background:#fff;border:3px solid var(--ink);border-radius:14px;padding:8px 10px}
+.stat b{display:block;font-family:var(--display);font-weight:400;font-size:28px;font-variant-numeric:tabular-nums}
+.stat span{font-weight:800;font-size:13px;color:var(--muted)}
+#gag{width:100%;max-width:520px;aspect-ratio:3/2;align-self:center;border:4px solid var(--ink);border-radius:18px;background:#bde0fe}
+.howto{display:grid;gap:8px;padding:0;margin:0;list-style:none}
+.howto li{background:#fff;border:3px solid var(--ink);border-radius:14px;padding:8px 12px;font-weight:700}
+/* house */
+#room{display:grid;gap:6px;background:#e9c46a;border:4px solid var(--ink);border-radius:16px;padding:10px;background-image:repeating-linear-gradient(90deg,rgba(31,24,48,.08) 0 2px,transparent 2px 46px)}
+.tile{aspect-ratio:1;border-radius:10px;background:rgba(255,255,255,.35);display:grid;place-items:center;font-size:clamp(22px,6vw,40px)}
+.tile.full{background:rgba(255,255,255,.7);border:2px solid var(--ink)}
+#shop{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}
+.item{display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px;font-size:14px;background:#fff}
+.item .e{font-size:30px;line-height:1.1}
+.item[disabled]{opacity:.45;cursor:not-allowed}
+.item.owned{background:var(--mint);color:#fff}
+#houseNote{background:var(--sun);border:3px solid var(--ink);border-radius:14px;padding:8px 12px;font-weight:800}
+@media (prefers-reduced-motion:reduce){#banner.show{animation-duration:.01s}button{transition:none}}
+</style>
+</head><body>
+
+<div id="app">
+  <canvas id="cv" aria-label="Chaos City map"></canvas>
+  <div id="flash"></div>
+  <div id="hud" hidden>
+    <div class="hudrow">
+      <div class="chip" id="lives" aria-label="Lives">❤️❤️❤️</div>
+      <div class="chip" id="timer">10:00</div>
+      <div class="chip" id="coins">🪙 0</div>
+      <button id="pauseBtn" aria-label="Pause">❚❚</button>
+    </div>
+    <div id="request">Get ready!</div>
+    <div class="chip" id="meter"></div>
+  </div>
+  <div id="touch" hidden>
+    <div id="stick" hidden><div id="knob"></div></div>
+    <button class="actbtn" id="act2" hidden>START<br>FIRE</button>
+    <button class="actbtn" id="act">ACTION</button>
+    <div id="keyhint">Move: arrows or WASD · Action: Space</div>
+  </div>
+  <div id="banner"></div>
+
+  <section class="screen" id="menu">
+    <div class="card">
+      <h1>Chaos City</h1>
+      <p class="lede">A busy, crazy city where anything can happen. Pick a job, jump into a shift and keep the chaos under control (or cause it!). Test version made with Ivar and Rowan's game design.</p>
+      <div class="label">1. Pick your character</div>
+      <div class="roles" id="roles"></div>
+      <div class="opts">
+        <div class="opt"><div class="label">2. Shift length</div><div class="seg" id="lenSeg"></div></div>
+        <div class="opt"><div class="label">3. Chaos level</div><div class="seg" id="lvlSeg"></div></div>
+        <div class="opt"><div class="label">Touch controls</div><div class="seg" id="ctlSeg"></div></div>
+      </div>
+      <div class="row">
+        <button class="big" id="playBtn">Start shift</button>
+        <button id="homeBtn">🏠 My house</button>
+        <span class="coinbadge" id="menuCoins">🪙 0 coins saved</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="screen" id="intro" hidden>
+    <div class="card">
+      <h2 id="introTitle">You are the Firefighter</h2>
+      <ul class="howto" id="introList"></ul>
+      <div class="row"><button class="big" id="goBtn">Go!</button></div>
+    </div>
+  </section>
+
+  <section class="screen" id="pause" hidden>
+    <div class="card">
+      <h2>Paused</h2>
+      <div class="row"><button class="big" id="resumeBtn">Keep playing</button><button id="quitBtn">End shift</button></div>
+    </div>
+  </section>
+
+  <section class="screen" id="over" hidden>
+    <div class="card">
+      <h2 id="overTitle">Out of lives!</h2>
+      <canvas id="gag" width="720" height="480"></canvas>
+      <p id="overText">You keep every coin you earned.</p>
+      <div class="row"><button class="big" id="overHome">Go home</button></div>
+    </div>
+  </section>
+
+  <section class="screen" id="house" hidden>
+    <div class="card">
+      <h2>My house</h2>
+      <div id="houseNote" hidden></div>
+      <div class="row"><span class="coinbadge" id="houseCoins">🪙 0</span><span class="lede">Coins only buy fun stuff for your house. They never change the game.</span></div>
+      <div id="room"></div>
+      <div class="label">Shop</div>
+      <div id="shop"></div>
+      <div class="row" id="houseBtns"></div>
+    </div>
+  </section>
+
+  <section class="screen" id="score" hidden>
+    <div class="card">
+      <h2>Shift over!</h2>
+      <p class="lede" id="scoreLede"></p>
+      <div class="stats" id="stats"></div>
+      <div class="row"><button class="big" id="againBtn">Next shift</button><button id="scoreHome">🏠 Spend coins</button><button id="scoreMenu">Change character</button></div>
+    </div>
+  </section>
+</div>
+
+<script>
+(() => {
+"use strict";
+// ---------- constants ----------
+const INK = "#1f1830";
+const LOT = 220, ROAD = 92, COLS = 8, ROWS = 6, INSET = 24, DEPTH = 22;
+const W = COLS * LOT + (COLS + 1) * ROAD, H = ROWS * LOT + (ROWS + 1) * ROAD;
+const roadX = i => i * (LOT + ROAD) + ROAD / 2;
+const roadY = j => j * (LOT + ROAD) + ROAD / 2;
+const lotX = c => ROAD + c * (LOT + ROAD);
+const lotY = r => ROAD + r * (LOT + ROAD);
+const LIMIT = 5;
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const rand = (a, b) => a + Math.random() * (b - a);
+const pick = a => a[Math.floor(Math.random() * a.length)];
+const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+
+const ROLES = {
+  firefighter: { name: "Firefighter", look: { body: "#e63946", hat: "helmet" }, blurb: "Put out fires before they spread", act: "SPRAY" },
+  police: { name: "Policeman", look: { body: "#3a6df0", hat: "cap" }, blurb: "Catch the robbers", act: "CATCH" },
+  doctor: { name: "Doctor", look: { body: "#ffffff", hat: "doc", cross: true }, blurb: "Heal people who get hurt", act: "HEAL" },
+  builder: { name: "Builder", look: { body: "#ff9f1c", hat: "hard" }, blurb: "Fix broken buildings", act: "FIX" },
+  robber: { name: "Robber", look: { body: "#2b2d42", hat: "beanie", stripes: true, mask: true }, blurb: "Steal stuff and cause trouble", act: "GRAB" },
+};
+const ROLE_ORDER = ["firefighter", "police", "doctor", "builder", "robber"];
+
+const NAMES = {
+  A: ["Pigeon Heights", "Pancake Towers", "Sky Stack", "Cozy Cubes", "Snoozy Suites", "Bunkbed Block", "Lanky Lofts", "Echo Apartments", "Noisy Neighbours", "Window Wonder", "Brick Stack", "Rooftop Rodeo", "Elm Court", "Maple Flats", "Hilltop Flats"],
+  C: ["Sunny Side Cafe", "The Wobbly Mug", "Croissant Corner", "Bean There", "Spoon & Moon", "Cafe Kaboom", "Waffle Wagon"],
+  S: ["Toy Tornado", "Mega Socks", "Pet Rock Emporium", "Gadget Garage", "Bubble Tea Bonanza", "Candy Avalanche", "Hat Hut", "Skate Shack", "Comic Cave", "Gumball Galaxy", "Noodle Palace", "Joke Shop", "Sneaker Peak"],
+};
+const LAYOUT = [
+  "ASCAFASD",
+  "SAGAMBCA",
+  "CUSPSAKS",
+  "ASACTHSA",
+  "SJCASGAC",
+  "LASCASAS",
+];
+// D donut, U upside-down house, T sneezing clock tower, L rubber duck lighthouse, G park
+const SPECIAL = {
+  F: { type: "fire", name: "Fire Station", roof: "#e63946", icon: "🚒" },
+  P: { type: "police", name: "Police Station", roof: "#3a6df0", icon: "🚓" },
+  H: { type: "hospital", name: "Hospital", roof: "#f1f1f1", icon: "✚" },
+  J: { type: "jail", name: "Jail", roof: "#8d99ae", icon: "⛓️" },
+  B: { type: "bank", name: "Big Bank", roof: "#2a9d8f", icon: "💰" },
+  M: { type: "mayor", name: "Mayor's Office", roof: "#9b5de5", icon: "🎩" },
+  K: { type: "site", name: "Building Site", roof: "#ffd60a", icon: "🏗️" },
+  G: { type: "park", name: "Park" },
+  D: { type: "landmark", name: "Giant Wobbly Donut" },
+  U: { type: "landmark", name: "Upside-Down House" },
+  T: { type: "landmark", name: "Sneezing Clock Tower" },
+  L: { type: "landmark", name: "Rubber Duck Lighthouse" },
+};
+const PASTELS = { A: ["#8ecae6", "#ffb4a2", "#cdb4db", "#b5e48c", "#ffd6a5", "#a0c4ff"], C: ["#f4a261", "#e76f51", "#ffafcc"], S: ["#ffd166", "#06d6a0", "#ef476f", "#118ab2", "#f77f00"] };
+
+// ---------- storage ----------
+const SKEY = "chaoscity.v1";
+let save = { coins: 0, owned: [], size: 0, role: "firefighter", len: 5, lvl: 1, ctl: "stick" };
+try { const s = JSON.parse(localStorage.getItem(SKEY) || "null"); if (s) save = Object.assign(save, s); } catch (e) {}
+function persist() { try { localStorage.setItem(SKEY, JSON.stringify(save)); } catch (e) {} }
+
+// ---------- dom ----------
+const $ = id => document.getElementById(id);
+const cv = $("cv"), ctx = cv.getContext("2d");
+let VW = 0, VH = 0, DPR = 1, ZOOM = 1;
+function resize() {
+  DPR = Math.min(2, window.devicePixelRatio || 1);
+  VW = window.innerWidth; VH = window.innerHeight;
+  cv.width = Math.round(VW * DPR); cv.height = Math.round(VH * DPR);
+  ZOOM = clamp(Math.min(VW, VH) / 560, 0.62, 1.25);
+}
+window.addEventListener("resize", resize); resize();
+
+// ---------- sound ----------
+let AC = null, muted = false;
+function audio() { if (!AC) { try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} } return AC; }
+function tone(f, d, type = "square", v = 0.06, delay = 0, slide = 0) {
+  const a = AC; if (!a || muted) return;
+  const t = a.currentTime + delay, o = a.createOscillator(), g = a.createGain();
+  o.type = type; o.frequency.setValueAtTime(f, t); if (slide) o.frequency.exponentialRampToValueAtTime(slide, t + d);
+  g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(0.0001, t + d);
+  o.connect(g).connect(a.destination); o.start(t); o.stop(t + d + 0.02);
+}
+const SFX = {
+  coin: () => { tone(988, .08); tone(1319, .14, "square", .06, .07); },
+  great: () => { [784, 988, 1175].forEach((f, i) => tone(f, .12, "triangle", .08, i * .07)); },
+  perfect: () => { [523, 659, 784, 1047, 1319].forEach((f, i) => tone(f, .14, "triangle", .09, i * .06)); },
+  hurt: () => tone(330, .4, "sawtooth", .07, 0, 110),
+  catch: () => { tone(880, .15, "square", .05); tone(660, .15, "square", .05, .16); tone(880, .15, "square", .05, .32); },
+  fire: () => tone(160, .3, "sawtooth", .04, 0, 90),
+  over: () => { [392, 370, 349, 311].forEach((f, i) => tone(f, .32, "triangle", .09, i * .3)); },
+  sneeze: () => { tone(500, .1, "sine", .06, 0, 900); tone(1200, .25, "sawtooth", .05, .12, 200); },
+};
+
+// ---------- world ----------
+let buildings = [], citizens = [], agents = [], parts = [], pops = [];
+let player = null, game = null;
+
+function makeCity() {
+  buildings = [];
+  const used = { A: 0, C: 0, S: 0 };
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+    const code = LAYOUT[r][c];
+    const lx = lotX(c), ly = lotY(r);
+    const b = { code, col: c, row: r, x: lx + INSET, y: ly + INSET, w: LOT - 2 * INSET, h: LOT - 2 * INSET,
+      fire: 0, fireStart: 0, spreadT: 7, broken: false, brokenStart: 0, loot: false, lootT: 0, repair: 0, steal: 0, sprayed: false,
+      door: { x: lx + LOT / 2, y: roadY(r + 1) } };
+    if (SPECIAL[code]) Object.assign(b, SPECIAL[code]);
+    else { b.type = { A: "apartment", C: "cafe", S: "shop" }[code]; b.name = NAMES[code][used[code]++ % NAMES[code].length]; b.roof = pick(PASTELS[code]); }
+    b.solid = b.type !== "park";
+    b.flammable = !["park", "landmark", "site"].includes(b.type);
+    b.breakable = b.flammable;
+    b.lootable = ["apartment", "cafe", "shop", "bank"].includes(b.type);
+    b.loot = b.lootable;
+    if (b.type === "park") { b.x = lx; b.y = ly; b.w = LOT; b.h = LOT; b.name = c === 2 ? "Backwards Fountain Park" : "Squirrel Square"; }
+    if (b.type === "landmark") { b.x = lx + 40; b.y = ly + 40; b.w = LOT - 80; b.h = LOT - 80; }
+    b.cx = b.x + b.w / 2; b.cy = b.y + b.h / 2;
+    buildings.push(b);
+  }
+}
+const byType = t => buildings.find(b => b.type === t);
+const exits = () => [{ x: 8, y: roadY(3) }, { x: W - 8, y: roadY(3) }, { x: roadX(4), y: 8 }, { x: roadX(4), y: H - 8 }];
+
+function randomRoadPoint() {
+  if (Math.random() < .5) return { x: roadX(Math.floor(rand(0, COLS + 1))), y: rand(ROAD, H - ROAD) };
+  return { x: rand(ROAD, W - ROAD), y: roadY(Math.floor(rand(0, ROWS + 1))) };
+}
+
+function makeCitizens(n) {
+  citizens = [];
+  const shirts = ["#ff006e", "#8338ec", "#3a86ff", "#fb5607", "#06d6a0", "#ffbe0b", "#7209b7", "#f15bb5", "#00bbf9"];
+  const skins = ["#ffd3a5", "#f1c27d", "#c68642", "#8d5524", "#ffe0bd"];
+  const hairs = ["#2b2d42", "#6f4518", "#ffd166", "#e76f51", "#3d405b"];
+  for (let i = 0; i < n; i++) {
+    const p = randomRoadPoint();
+    citizens.push({ x: p.x, y: p.y, path: [], speed: rand(45, 70), injured: false, injT: 0, heal: 0, ow: 0, lane: rand(-26, 26),
+      look: { body: pick(shirts), skin: pick(skins), hair: pick(hairs) } });
+  }
+}
+
+function makeAgent(role, isPlayer) {
+  let spawn;
+  const home = { firefighter: "fire", police: "police", doctor: "hospital", builder: "site" }[role];
+  if (home) spawn = Object.assign({}, byType(home).door);
+  else if (isPlayer) { const ps = byType("police").door, e = exits().sort((a, b) => dist(b, ps) - dist(a, ps))[0]; spawn = { x: clamp(e.x, 50, W - 50), y: clamp(e.y, 50, H - 50) }; }
+  else spawn = randomRoadPoint();
+  const baseSpeed = isPlayer ? 215 : { police: 172, robber: 178, firefighter: 150, doctor: 150, builder: 150 }[role];
+  return { role, x: spawn.x, y: spawn.y, isPlayer, ai: !isPlayer, speed: baseSpeed, path: [], replan: 0, carrying: 0, firstSteal: 0,
+    jailed: 0, cool: 0, fleeT: 0, task: null, prog: 0, facing: 1, lastAct: 0, lives: 3, invuln: 0 };
+}
+
+// ---------- navigation ----------
+function snapNode(fx, fy, tx, ty) {
+  const fi = (fx - ROAD / 2) / (LOT + ROAD), fj = (fy - ROAD / 2) / (LOT + ROAD);
+  const ir = clamp(Math.round(fi), 0, COLS), jr = clamp(Math.round(fj), 0, ROWS);
+  const c = [];
+  if (Math.abs(fy - roadY(jr)) < ROAD / 2 + INSET) c.push({ i: clamp(Math.floor(fi), 0, COLS), j: jr }, { i: clamp(Math.ceil(fi), 0, COLS), j: jr });
+  if (Math.abs(fx - roadX(ir)) < ROAD / 2 + INSET) c.push({ i: ir, j: clamp(Math.floor(fj), 0, ROWS) }, { i: ir, j: clamp(Math.ceil(fj), 0, ROWS) });
+  if (!c.length) c.push({ i: ir, j: jr });
+  let best = c[0], bs = 1e9;
+  for (const n of c) { const nx = roadX(n.i), ny = roadY(n.j); const s = Math.hypot(nx - fx, ny - fy) + Math.abs(nx - tx) + Math.abs(ny - ty); if (s < bs) { bs = s; best = n; } }
+  return best;
+}
+function plan(fx, fy, tx, ty) {
+  if (Math.hypot(tx - fx, ty - fy) < 150 && lineClear(fx, fy, tx, ty)) return [{ x: tx, y: ty }];
+  const a = snapNode(fx, fy, tx, ty), b = snapNode(tx, ty, fx, fy);
+  const pts = [{ x: roadX(a.i), y: roadY(a.j) }, { x: roadX(b.i), y: roadY(a.j) }, { x: roadX(b.i), y: roadY(b.j) }, { x: tx, y: ty }];
+  const out = [];
+  for (const p of pts) { const l = out[out.length - 1]; if (!l || Math.hypot(l.x - p.x, l.y - p.y) > 4) out.push(p); }
+  return out;
+}
+function lineClear(ax, ay, bx, by) {
+  for (let k = 1; k < 8; k++) { const x = ax + (bx - ax) * k / 8, y = ay + (by - ay) * k / 8; if (insideSolid(x, y, 10)) return false; }
+  return true;
+}
+function insideSolid(x, y, pad) {
+  for (const b of buildings) if (b.solid && x > b.x - pad && x < b.x + b.w + pad && y > b.y - pad && y < b.y + b.h + pad) return true;
+  return false;
+}
+function collide(e, r = 13) {
+  for (const b of buildings) {
+    if (!b.solid) continue;
+    const nx = clamp(e.x, b.x, b.x + b.w), ny = clamp(e.y, b.y, b.y + b.h);
+    let dx = e.x - nx, dy = e.y - ny; const d = Math.hypot(dx, dy);
+    if (d < r) {
+      if (d > 0.001) { e.x = nx + dx / d * r; e.y = ny + dy / d * r; }
+      else { const L = e.x - b.x, R = b.x + b.w - e.x, T = e.y - b.y, B = b.y + b.h - e.y, m = Math.min(L, R, T, B);
+        if (m === L) e.x = b.x - r; else if (m === R) e.x = b.x + b.w + r; else if (m === T) e.y = b.y - r; else e.y = b.y + b.h + r; }
+    }
+  }
+  e.x = clamp(e.x, 6, W - 6); e.y = clamp(e.y, 6, H - 6);
+}
+function followPath(e, dt, speed) {
+  if (!e.path.length) return false;
+  const p = e.path[0], dx = p.x - e.x, dy = p.y - e.y, d = Math.hypot(dx, dy);
+  if (d < 6) { e.path.shift(); return true; }
+  const s = Math.min(d, speed * dt);
+  e.x += dx / d * s; e.y += dy / d * s;
+  if (Math.abs(dx) > 1) e.facing = Math.sign(dx);
+  return true;
+}
+function rectDist(p, b) { const nx = clamp(p.x, b.x, b.x + b.w), ny = clamp(p.y, b.y, b.y + b.h); return Math.hypot(p.x - nx, p.y - ny); }
+
+// ---------- game state ----------
+const LVL = [{ name: "Calm", rate: .6 }, { name: "Normal", rate: 1 }, { name: "Wild", rate: 1.45 }];
+
+function newGame() {
+  makeCity(); makeCitizens(34);
+  parts = []; pops = [];
+  const role = save.role;
+  player = makeAgent(role, true);
+  agents = [player];
+  for (const r of ROLE_ORDER) if (r !== role) agents.push(makeAgent(r, false));
+  agents.push(makeAgent("robber", false)); // a second robber keeps the city chaotic
+  game = { t: 0, len: save.len * 60, rate: LVL[save.lvl].rate, directorT: 4, running: false, paused: false, over: false, alive: true,
+    sneezeT: 40, coinsShift: 0, stats: { fires: 0, healed: 0, fixed: 0, caught: 0, stolen: 0, getaways: 0, perfects: 0, cityFires: 0, cityHurt: 0, cityBroken: 0, escapes: 0 } };
+  // a little chaos to start with
+  ignite(pick(buildings.filter(b => b.flammable)));
+  hurt(pick(citizens));
+  breakB(pick(buildings.filter(b => b.breakable && !b.fire)));
+}
+
+function now() { return game ? game.t : 0; }
+function ignite(b) { if (!b || !b.flammable || b.fire > 0) return; b.fire = 20; b.fireStart = now(); b.spreadT = 8; game.stats.cityFires++; }
+function hurt(c) { if (!c || c.injured) return; c.injured = true; c.injT = now(); c.heal = 0; c.path = []; game.stats.cityHurt++; }
+function breakB(b) { if (!b || !b.breakable || b.broken) return; b.broken = true; b.brokenStart = now(); b.repair = 0; game.stats.cityBroken++; }
+
+function grade(t, p, g) { return t < p ? 2 : t < g ? 1 : 0; }
+function reward(x, y, base, lvl, label) {
+  const mult = [1, 1.6, 2.4][lvl];
+  const coins = Math.round(base * mult);
+  save.coins += coins; game.coinsShift += coins; persist();
+  const words = ["Good job!", "GREAT!", "PERFECT!"];
+  pops.push({ x, y: y - 30, text: `+${coins} ${label || words[lvl]}`, t: 0, color: ["#fff6df", "#ffc93c", "#21c29b"][lvl] });
+  burst(x, y - 10, lvl === 2 ? 40 : lvl === 1 ? 18 : 8, lvl);
+  if (lvl === 2) { banner("PERFECT!"); SFX.perfect(); game.stats.perfects++; } else if (lvl === 1) SFX.great(); else SFX.coin();
+}
+function burst(x, y, n, kind) {
+  const cols = kind === 2 ? ["#ff006e", "#ffbe0b", "#3a86ff", "#06d6a0", "#8338ec"] : kind === 1 ? ["#ffc93c", "#fff6df"] : ["#ffc93c"];
+  for (let i = 0; i < n; i++) { const a = rand(0, Math.PI * 2), s = rand(80, 260); parts.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 120, life: rand(.6, 1.2), t: 0, c: pick(cols), star: kind === 1, g: 380 }); }
+}
+let bannerTO = 0;
+function banner(text) { const el = $("banner"); el.textContent = text; el.classList.remove("show"); void el.offsetWidth; el.classList.add("show"); }
+
+// ---------- actions (shared by player and AI) ----------
+function nearestBy(list, from, filt, max = 1e9, dfn = (o) => dist(from, o)) {
+  let best = null, bd = max;
+  for (const o of list) { if (!filt(o)) continue; const d = dfn(o); if (d < bd) { bd = d; best = o; } }
+  return best;
+}
+const RANGE = 78;
+
+function doAction(a, dt, held, pressed, pressed2) {
+  const R = a.role;
+  a.working = false;
+  if (a.jailed > 0) return;
+  if (R === "firefighter" && held) {
+    const b = nearestBy(buildings, a, b => b.fire > 0, RANGE + 30, b => rectDist(a, b));
+    if (b) {
+      a.working = true; b.sprayed = true; b.fire -= (a.isPlayer && !a.ai ? 48 : 30) * dt;
+      if (Math.random() < .7) parts.push({ x: a.x, y: a.y - 8, vx: (b.cx - a.x) * 1.6 + rand(-40, 40), vy: (b.cy - a.y) * 1.6 + rand(-40, 40), life: .4, t: 0, c: "#4cc9f0", g: 0, drop: true });
+      if (b.fire <= 0) {
+        b.fire = 0;
+        if (a.isPlayer && !a.ai) { game.stats.fires++; reward(b.cx, b.cy, 6, grade(now() - b.fireStart, 12, 24), null); }
+      }
+    }
+  }
+  if (R === "builder" && held) {
+    const b = nearestBy(buildings, a, b => b.broken && b.fire <= 0, RANGE, b => rectDist(a, b));
+    if (b) {
+      a.working = true; b.repair += dt * (a.isPlayer && !a.ai ? 1 : .6); a.prog = b.repair / 2; a.progAt = b;
+      if (Math.random() < .3) parts.push({ x: rand(b.x, b.x + b.w), y: b.y + b.h - 4, vx: rand(-60, 60), vy: rand(-160, -60), life: .5, t: 0, c: "#c9ada7", g: 500 });
+      if (b.repair >= 2) {
+        b.broken = false; b.repair = 0; a.prog = 0;
+        if (a.isPlayer && !a.ai) { game.stats.fixed++; reward(b.cx, b.cy, 6, grade(now() - b.brokenStart, 15, 30)); }
+      }
+    } else a.prog = 0;
+  }
+  if (R === "doctor" && held) {
+    const c = nearestBy(citizens, a, c => c.injured, 50);
+    if (c) {
+      a.working = true; c.heal += dt * (a.isPlayer && !a.ai ? 1 : .6); a.prog = c.heal / 1.2;
+      if (Math.random() < .25) parts.push({ x: c.x + rand(-10, 10), y: c.y - 10, vx: 0, vy: -50, life: .7, t: 0, c: "#ff006e", g: 0, heart: true });
+      if (c.heal >= 1.2) {
+        c.injured = false; c.heal = 0; a.prog = 0;
+        if (a.isPlayer && !a.ai) { game.stats.healed++; reward(c.x, c.y, 5, grade(now() - c.injT, 12, 25)); }
+      }
+    } else a.prog = 0;
+  }
+  if (R === "police") {
+    const r = nearestBy(agents, a, o => o.role === "robber" && catchable(o), a.isPlayer && !a.ai ? 62 : 34);
+    if (r && (pressed || (a.ai && !a.isPlayer) || a.ai)) arrest(a, r);
+  }
+  if (R === "robber") {
+    if (held && a.carrying < 3) {
+      const b = nearestBy(buildings, a, b => b.lootable && b.loot && b.fire <= 0, RANGE, b => rectDist(a, b));
+      if (b) {
+        a.working = true; b.steal += dt; const need = b.type === "bank" ? 2.4 : 1.2; a.prog = b.steal / need;
+        if (b.steal >= need) {
+          b.loot = false; b.lootT = 28; b.steal = 0; a.prog = 0; a.carrying++;
+          if (!a.firstSteal) a.firstSteal = now();
+          if (b.type === "bank") breakB(b);
+          if (a.isPlayer && !a.ai) { game.stats.stolen++; reward(b.cx, b.cy, b.type === "bank" ? 10 : 4, 0, b.type === "bank" ? "Bank loot!" : "Loot!"); }
+        }
+      } else a.prog = 0;
+    }
+    if (pressed2 && a.cool <= 0) {
+      const b = nearestBy(buildings, a, b => b.flammable && b.fire <= 0, RANGE, b => rectDist(a, b));
+      if (b) { ignite(b); a.cool = 8; SFX.fire(); if (a.isPlayer && !a.ai) { save.coins += 2; game.coinsShift += 2; persist(); pops.push({ x: b.cx, y: b.cy - 30, text: "+2 Chaos!", t: 0, color: "#ff5a36" }); } }
+    }
+    if (a.carrying >= 3) {
+      const ex = nearestBy(exits(), a, () => true);
+      if (dist(a, ex) < 46) escape(a);
+    }
+  }
+}
+
+function catchable(o) { return o.jailed <= 0 && now() >= (o.graceUntil || 0); }
+function arrest(cop, rob) {
+  const jail = byType("jail");
+  const carried = rob.carrying;
+  rob.jailed = rob.isPlayer && !rob.ai ? 4 : 9; rob.graceUntil = now() + rob.jailed + 3; rob.carrying = 0; rob.firstSteal = 0; rob.path = []; rob.prog = 0;
+  rob.x = jail.door.x; rob.y = jail.door.y;
+  SFX.catch();
+  if (cop.isPlayer && !cop.ai) { game.stats.caught++; reward(rob.x, rob.y, 10, carried === 0 ? 2 : carried === 1 ? 1 : 0, null); }
+  if (rob.isPlayer && !rob.ai) loseLife("You got caught!");
+  else pops.push({ x: cop.x, y: cop.y - 30, text: "Caught!", t: 0, color: "#3a6df0" });
+}
+function escape(rob) {
+  const t = now() - rob.firstSteal;
+  game.stats.getawaysCity = (game.stats.getawaysCity || 0) + 1;
+  if (rob.isPlayer && !rob.ai) { game.stats.getaways++; reward(rob.x, rob.y, 14, grade(t, 45, 80), null); banner("GETAWAY!"); }
+  if (player.role === "police" && !player.ai && !rob.isPlayer) loseLife("A robber got away with 3 things!");
+  rob.carrying = 0; rob.firstSteal = 0; rob.path = [];
+  const p = randomRoadPoint(); rob.x = p.x; rob.y = p.y;
+}
+
+function loseLife(reason) {
+  if (!game.alive || player.invuln > 0) return;
+  player.lives--; player.invuln = 6;
+  SFX.hurt(); $("flash").classList.remove("on"); void $("flash").offsetWidth; $("flash").classList.add("on");
+  banner(reason.length > 18 ? "OUCH!" : reason);
+  pops.push({ x: player.x, y: player.y - 40, text: reason, t: 0, color: "#ff5a36", big: true });
+  // backup crew so one bad moment doesn't cascade
+  const R = player.role;
+  if (R === "firefighter") buildings.filter(b => b.fire > 0).sort((a, b) => b.fire - a.fire).slice(0, 3).forEach(b => b.fire = 0);
+  if (R === "doctor") citizens.filter(c => c.injured).slice(0, 3).forEach(c => c.injured = false);
+  if (R === "builder") buildings.filter(b => b.broken).slice(0, 3).forEach(b => b.broken = false);
+  if (player.lives <= 0) gameOver();
+}
+
+// ---------- AI ----------
+function think(a, dt) {
+  a.replan -= dt; a.cool -= dt; a.fleeT -= dt;
+  if (a.jailed > 0) { a.jailed -= dt; return { held: false }; }
+  let target = null, hold = false, press2 = false;
+  const R = a.role;
+  if (R === "firefighter") { const b = nearestBy(buildings, a, b => b.fire > 0, 1e9, b => dist(a, b.door) - b.fire * 3); if (b) { target = b.door; hold = rectDist(a, b) < RANGE + 20; } }
+  if (R === "doctor") { const c = nearestBy(citizens, a, c => c.injured); if (c) { target = c; hold = dist(a, c) < 44; } }
+  if (R === "builder") { const b = nearestBy(buildings, a, b => b.broken && b.fire <= 0, 1e9, b => dist(a, b.door)); if (b) { target = b.door; hold = rectDist(a, b) < RANGE; } }
+  if (R === "police") { const r = nearestBy(agents, a, o => o.role === "robber" && catchable(o), 1e9, o => dist(a, o) - o.carrying * 160); if (r) target = r; }
+  if (R === "robber") {
+    const cop = nearestBy(agents, a, o => o.role === "police" && o !== a, 230);
+    if (cop && a.fleeT <= 0 && Math.random() < .6) {
+      // run to the road crossing that is furthest from the cop
+      const n = snapNode(a.x, a.y, a.x, a.y), opts = [];
+      for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const i = n.i + di, j = n.j + dj; if (i >= 0 && i <= COLS && j >= 0 && j <= ROWS) opts.push({ x: roadX(i), y: roadY(j) }); }
+      const far = opts.sort((p, q) => dist(q, cop) - dist(p, cop))[0];
+      if (far) { a.task = far; a.fleeT = 1.4; a.replan = 0; }
+    }
+    if (a.fleeT > 0 && a.task) target = a.task;
+    else if (a.carrying >= 3) target = nearestBy(exits(), a, () => true);
+    else {
+      if (!a.goal || !a.goal.loot) a.goal = pick(buildings.filter(b => b.lootable && b.loot && b.fire <= 0)) || null;
+      if (a.goal) { target = a.goal.door; hold = rectDist(a, a.goal) < RANGE; if (hold && Math.random() < .004 && a.cool <= 0) press2 = true; }
+    }
+    if (a.carrying > 0 && a.cool <= 0 && Math.random() < dt * .08) press2 = true;
+  }
+  if (target) {
+    if (a.replan <= 0 || !a.path.length) { a.path = plan(a.x, a.y, target.x, target.y); a.replan = R === "police" ? .45 : .9; }
+  } else if (!a.path.length) { const p = randomRoadPoint(); a.path = plan(a.x, a.y, p.x, p.y); }
+  if (!(hold && a.working)) followPath(a, dt, a.speed * (R === "robber" && a.fleeT > 0 ? 1.08 : 1));
+  collide(a);
+  return { held: hold, press2 };
+}
+
+// ---------- input ----------
+const keys = {};
+const input = { mx: 0, my: 0, act: false, actPressed: false, act2Pressed: false, tapTarget: null };
+window.addEventListener("keydown", e => {
+  if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " "].includes(e.key)) e.preventDefault();
+  const k = e.key.toLowerCase();
+  if ((k === " " || k === "j") && !keys[k]) input.actPressed = true;
+  if ((k === "e" || k === "k") && !keys[k]) input.act2Pressed = true;
+  if (k === "escape" || k === "p") togglePause();
+  keys[k] = true;
+});
+window.addEventListener("keyup", e => { keys[e.key.toLowerCase()] = false; });
+const stick = { id: null, ox: 0, oy: 0, dx: 0, dy: 0 };
+cv.addEventListener("pointerdown", e => {
+  audio();
+  if (!game || !game.running || game.paused) return;
+  if (save.ctl === "tap" || e.pointerType === "mouse") {
+    input.tapTarget = { x: (e.clientX - VW / 2) / ZOOM + cam.x, y: (e.clientY - VH / 2) / ZOOM + cam.y };
+    return;
+  }
+  if (stick.id !== null) return;
+  stick.id = e.pointerId; stick.ox = e.clientX; stick.oy = e.clientY; stick.dx = stick.dy = 0;
+  const s = $("stick"); s.hidden = false; s.style.left = e.clientX + "px"; s.style.top = e.clientY + "px"; $("knob").style.transform = "";
+  cv.setPointerCapture(e.pointerId);
+});
+cv.addEventListener("pointermove", e => {
+  if (e.pointerId !== stick.id) return;
+  let dx = e.clientX - stick.ox, dy = e.clientY - stick.oy; const d = Math.hypot(dx, dy), m = 50;
+  if (d > m) { dx = dx / d * m; dy = dy / d * m; }
+  stick.dx = dx / m; stick.dy = dy / m;
+  $("knob").style.transform = `translate(${dx}px,${dy}px)`;
+});
+function endStick(e) { if (e.pointerId !== stick.id) return; stick.id = null; stick.dx = stick.dy = 0; $("stick").hidden = true; }
+cv.addEventListener("pointerup", endStick); cv.addEventListener("pointercancel", endStick);
+function bindHold(el, on, off) {
+  el.addEventListener("pointerdown", e => { e.preventDefault(); audio(); el.setPointerCapture(e.pointerId); on(); });
+  el.addEventListener("pointerup", off); el.addEventListener("pointercancel", off); el.addEventListener("lostpointercapture", off);
+}
+bindHold($("act"), () => { input.act = true; input.actPressed = true; }, () => { input.act = false; });
+bindHold($("act2"), () => { input.act2Pressed = true; }, () => {});
+
+// ---------- loop ----------
+const cam = { x: W / 2, y: H / 2 };
+let last = performance.now();
+function frame(ts) {
+  const dt = Math.min(.05, (ts - last) / 1000); last = ts;
+  if (game && game.running && !game.paused) update(dt);
+  if (game) render(); else renderIdle(ts);
+  requestAnimationFrame(frame);
+}
+
+function update(dt) {
+  const g = game; g.t += dt;
+  const prog = clamp(g.t / g.len, 0, 1);
+  // director: random city chaos, faster as the shift goes on
+  g.directorT -= dt;
+  if (g.directorT <= 0) {
+    g.directorT = (8.5 - 5 * prog) / g.rate * rand(.7, 1.3);
+    const fires = buildings.filter(b => b.fire > 0).length, hurtN = citizens.filter(c => c.injured).length, br = buildings.filter(b => b.broken).length;
+    const w = { fire: fires < 7 ? 1 : 0, hurt: hurtN < 7 ? 1 : 0, crack: br < 7 ? 1 : 0 };
+    const mine = { firefighter: "fire", doctor: "hurt", builder: "crack" }[player.role];
+    if (mine && w[mine]) w[mine] *= 1.7;
+    const tot = w.fire + w.hurt + w.crack; let r = Math.random() * tot;
+    if ((r -= w.fire) < 0) { const b = pick(buildings.filter(b => b.flammable && b.fire <= 0)); ignite(b); if (b) pops.push({ x: b.cx, y: b.cy - 20, text: pick(["Toast on fire!", "Oops, fire!", "Hot hot hot!"]), t: 0, color: "#ff5a36" }); }
+    else if ((r -= w.hurt) < 0) { const c = pick(citizens.filter(c => !c.injured)); hurt(c); if (c) pops.push({ x: c.x, y: c.y - 24, text: pick(["Slipped on a banana!", "Tripped!", "Bonk!"]), t: 0, color: "#ff006e" }); }
+    else { const b = pick(buildings.filter(b => b.breakable && !b.broken && b.fire <= 0)); breakB(b); if (b) pops.push({ x: b.cx, y: b.cy - 20, text: pick(["Crack!", "Pipe burst!", "Wall wobble!"]), t: 0, color: "#c9ada7" }); }
+  }
+  // fires grow, spread, hurt people, burn out
+  for (const b of buildings) {
+    if (b.fire > 0) {
+      if (!b.sprayed) b.fire = Math.min(100, b.fire + 7 * dt);
+      b.spreadT -= dt;
+      if (b.spreadT <= 0) {
+        b.spreadT = rand(6, 9);
+        if (b.fire > 55 && Math.random() < .35 + .25 * prog) {
+          const n = pick(buildings.filter(o => o !== b && o.flammable && o.fire <= 0 && Math.hypot(o.cx - b.cx, o.cy - b.cy) < (LOT + ROAD) * 1.05));
+          if (n) { ignite(n); pops.push({ x: n.cx, y: n.cy - 20, text: "Fire spread!", t: 0, color: "#ff5a36" }); }
+        }
+      }
+      if (now() - b.fireStart > 34 && !b.sprayed) { b.fire = 0; breakB(b); }
+      if (Math.random() < .5) parts.push({ x: rand(b.x + 10, b.x + b.w - 10), y: b.y - DEPTH + rand(0, b.h * .6), vx: rand(-15, 15), vy: rand(-60, -30), life: rand(.8, 1.6), t: 0, c: "rgba(60,50,70,.35)", g: -10, smoke: true, r: rand(8, 16) });
+    }
+    b.sprayed = false;
+    if (!b.loot && b.lootable) { b.lootT -= dt; if (b.lootT <= 0) b.loot = true; }
+  }
+  for (const c of citizens) {
+    if (c.injured) { c.ow -= dt; if (c.ow <= 0) { c.ow = rand(3, 6); pops.push({ x: c.x, y: c.y - 22, text: "Ow!", t: 0, color: "#fff6df", small: true }); } continue; }
+    if (!c.path.length) {
+      const n = snapNode(c.x, c.y, c.x, c.y), opts = [];
+      for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const i = n.i + di, j = n.j + dj; if (i >= 0 && i <= COLS && j >= 0 && j <= ROWS) opts.push({ x: roadX(i) + (dj ? c.lane : 0), y: roadY(j) + (di ? c.lane : 0) }); }
+      c.path = [pick(opts)];
+    }
+    followPath(c, dt, c.speed);
+    for (const b of buildings) if (b.fire > 40 && rectDist(c, b) < 60 && Math.random() < dt * .05) { hurt(c); pops.push({ x: c.x, y: c.y - 24, text: "Too hot!", t: 0, color: "#ff5a36" }); }
+  }
+  // player
+  const p = player;
+  p.cool -= dt; p.invuln -= dt;
+  if (!p.ai) {
+    if (p.jailed > 0) { p.jailed -= dt; }
+    else {
+      let mx = (keys.arrowright || keys.d ? 1 : 0) - (keys.arrowleft || keys.a ? 1 : 0) + stick.dx;
+      let my = (keys.arrowdown || keys.s ? 1 : 0) - (keys.arrowup || keys.w ? 1 : 0) + stick.dy;
+      if (Math.abs(mx) + Math.abs(my) > 0.1) input.tapTarget = null;
+      else if (input.tapTarget) { const dx = input.tapTarget.x - p.x, dy = input.tapTarget.y - p.y, d = Math.hypot(dx, dy); if (d < 10) input.tapTarget = null; else { mx = dx / d; my = dy / d; } }
+      const m = Math.hypot(mx, my); if (m > 1) { mx /= m; my /= m; }
+      const slow = p.working ? .35 : 1;
+      p.x += mx * p.speed * slow * dt; p.y += my * p.speed * slow * dt;
+      if (Math.abs(mx) > .1) p.facing = Math.sign(mx);
+      p.moving = m > .1;
+      collide(p);
+    }
+    const held = input.act || keys[" "] || keys.j;
+    doAction(p, dt, held, input.actPressed, input.act2Pressed);
+  }
+  input.actPressed = false; input.act2Pressed = false;
+  // AI agents (including the player's character once they're out of lives)
+  for (const a of agents) {
+    if (a.isPlayer && !a.ai) continue;
+    const r = think(a, dt);
+    doAction(a, dt, r.held, false, r.press2);
+  }
+  // AI police vs player robber: catching is automatic when close
+  // life checks
+  if (g.alive) {
+    const R = p.role;
+    if (R === "firefighter" && buildings.filter(b => b.fire > 0).length >= LIMIT) loseLife("Too many fires!");
+    if (R === "doctor" && citizens.filter(c => c.injured).length >= LIMIT) loseLife("Too many hurt!");
+    if (R === "builder" && buildings.filter(b => b.broken).length >= LIMIT) loseLife("Too much broken!");
+  }
+  // landmarks
+  g.sneezeT -= dt;
+  if (g.sneezeT <= 0) {
+    g.sneezeT = rand(35, 50); const t = buildings.find(b => b.code === "T");
+    burst(t.cx, t.y - 40, 50, 2); pops.push({ x: t.cx, y: t.y - 50, text: "AAA-CHOO!", t: 0, color: "#fff6df", big: true });
+    if (dist(p, t) < 700) SFX.sneeze();
+  }
+  // particles
+  for (const q of parts) { q.t += dt; q.x += q.vx * dt; q.y += q.vy * dt; q.vy += (q.g || 0) * dt; }
+  parts = parts.filter(q => q.t < q.life); if (parts.length > 700) parts.splice(0, parts.length - 700);
+  for (const q of pops) q.t += dt; pops = pops.filter(q => q.t < 1.6);
+  // camera
+  const ease = 1 - Math.pow(.001, dt);
+  cam.x += (p.x - cam.x) * ease; cam.y += (p.y - cam.y) * ease;
+  const hw = VW / 2 / ZOOM, hh = VH / 2 / ZOOM;
+  cam.x = W < hw * 2 ? W / 2 : clamp(cam.x, hw, W - hw); cam.y = H < hh * 2 ? H / 2 : clamp(cam.y, hh, H - hh);
+  if (g.t >= g.len) endShift();
+  updateHUD();
+}
+
+// ---------- HUD ----------
+function roleTarget() {
+  const p = player, R = p.role;
+  if (R === "firefighter") { const b = nearestBy(buildings, p, b => b.fire > 0, 1e9, b => rectDist(p, b)); return b && { pt: { x: b.cx, y: b.cy }, text: `🔥 Fire at ${b.name}!` }; }
+  if (R === "doctor") { const c = nearestBy(citizens, p, c => c.injured); return c && { pt: c, text: "🤕 Someone is hurt! Go help them." }; }
+  if (R === "builder") { const b = nearestBy(buildings, p, b => b.broken && b.fire <= 0, 1e9, b => rectDist(p, b)); return b && { pt: { x: b.cx, y: b.cy }, text: `🧱 ${b.name} is broken!` }; }
+  if (R === "police") { const r = nearestBy(agents, p, o => o.role === "robber" && catchable(o), 1e9, o => dist(p, o) - o.carrying * 160); return r && { pt: r, text: r.carrying ? `🚨 Robber with ${r.carrying} stolen thing${r.carrying > 1 ? "s" : ""}!` : "🚨 Catch the robber!" }; }
+  if (R === "robber") {
+    if (p.jailed > 0) return { pt: null, text: "⛓️ In jail! Wait for the doors to open..." };
+    if (p.carrying >= 3) { const e = nearestBy(exits(), p, () => true); return { pt: e, text: "🏃 Run to the city exit!" }; }
+    const b = nearestBy(buildings, p, b => b.lootable && b.loot && b.fire <= 0, 1e9, b => rectDist(p, b)); return b && { pt: { x: b.cx, y: b.cy }, text: `💰 Grab loot from ${b.name}` };
+  }
+}
+let hudCache = {};
+function setText(id, t) { if (hudCache[id] !== t) { hudCache[id] = t; $(id).textContent = t; } }
+function updateHUD() {
+  const g = game, p = player;
+  const left = Math.max(0, g.len - g.t), m = Math.floor(left / 60), s = Math.floor(left % 60);
+  setText("timer", `⏱ ${m}:${String(s).padStart(2, "0")}`);
+  $("timer").classList.toggle("low", left < 30);
+  setText("lives", g.alive ? "❤️".repeat(Math.max(0, p.lives)) + "🖤".repeat(3 - Math.max(0, p.lives)) : "🤖 AI is playing");
+  setText("coins", `🪙 ${g.coinsShift}`);
+  const tgt = roleTarget();
+  setText("request", !g.alive ? "You're out of lives. An AI player took over your job." : tgt ? tgt.text : "All calm for now. Walk around the city.");
+  let mt = "", lvl = 0;
+  if (p.role === "firefighter") { const n = buildings.filter(b => b.fire > 0).length; mt = `🔥 Fires ${n} / ${LIMIT}`; lvl = n >= LIMIT - 1 ? 2 : n >= LIMIT - 2 ? 1 : 0; }
+  if (p.role === "doctor") { const n = citizens.filter(c => c.injured).length; mt = `🤕 Hurt ${n} / ${LIMIT}`; lvl = n >= LIMIT - 1 ? 2 : n >= LIMIT - 2 ? 1 : 0; }
+  if (p.role === "builder") { const n = buildings.filter(b => b.broken).length; mt = `🧱 Broken ${n} / ${LIMIT}`; lvl = n >= LIMIT - 1 ? 2 : n >= LIMIT - 2 ? 1 : 0; }
+  if (p.role === "police") { const n = Math.max(0, ...agents.filter(a => a.role === "robber").map(a => a.carrying)); mt = `🧺 Worst robber has ${n} / 3 stolen`; lvl = n >= 3 ? 2 : n >= 2 ? 1 : 0; }
+  if (p.role === "robber") { mt = `🧺 Loot ${p.carrying} / 3` + (p.cool > 0 ? `  ·  🔥 in ${Math.ceil(p.cool)}s` : "  ·  🔥 ready"); lvl = 0; }
+  setText("meter", mt);
+  $("meter").className = "chip" + (lvl === 2 ? " danger" : lvl === 1 ? " warn" : "");
+}
+
+// ---------- drawing ----------
+function rr(g, x, y, w, h, r) { g.beginPath(); g.roundRect ? g.roundRect(x, y, w, h, r) : g.rect(x, y, w, h); }
+function circle(g, x, y, r) { g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); }
+function shade(hex, f) {
+  const n = parseInt(hex.slice(1), 16); let r = n >> 16, g = (n >> 8) & 255, b = n & 255;
+  if (f < 0) { r *= 1 + f; g *= 1 + f; b *= 1 + f; } else { r += (255 - r) * f; g += (255 - g) * f; b += (255 - b) * f; }
+  return `rgb(${r | 0},${g | 0},${b | 0})`;
+}
+
+function drawPerson(g, x, y, s, look, mood = "happy", t = 0) {
+  g.save(); g.translate(x, y); g.scale(s, s);
+  g.lineWidth = 2.6; g.strokeStyle = INK; g.lineJoin = "round";
+  g.fillStyle = "rgba(20,15,40,.25)"; g.beginPath(); g.ellipse(0, 13, 13, 5, 0, 0, Math.PI * 2); g.fill();
+  circle(g, 0, 2, 12); g.fillStyle = look.body; g.fill();
+  if (look.stripes) { g.save(); circle(g, 0, 2, 12); g.clip(); g.fillStyle = "#fff6df"; g.fillRect(-14, -3, 28, 3.5); g.fillRect(-14, 5, 28, 3.5); g.restore(); }
+  if (look.cross) { g.fillStyle = "#e63946"; g.fillRect(-1.6, 0, 3.2, 9); g.fillRect(-4.5, 3, 9, 3.2); }
+  circle(g, 0, 2, 12); g.stroke();
+  circle(g, 0, -12, 9); g.fillStyle = look.skin || "#ffd3a5"; g.fill(); g.stroke();
+  if (look.hair) { g.beginPath(); g.arc(0, -13, 9, Math.PI * 1.05, Math.PI * 1.95); g.fillStyle = look.hair; g.fill(); g.stroke(); }
+  // face
+  g.fillStyle = INK;
+  if (look.mask) { g.fillStyle = INK; rr(g, -9, -16, 18, 5.5, 2.5); g.fill(); g.fillStyle = "#fff"; circle(g, -3.4, -13.3, 1.5); g.fill(); circle(g, 3.4, -13.3, 1.5); g.fill(); g.fillStyle = INK; }
+  else if (mood === "dizzy") { g.lineWidth = 1.6; for (const ex of [-3.4, 3.4]) { g.beginPath(); g.moveTo(ex - 2, -15); g.lineTo(ex + 2, -11); g.moveTo(ex + 2, -15); g.lineTo(ex - 2, -11); g.stroke(); } g.lineWidth = 2.6; }
+  else { circle(g, -3.4, -13, 1.4); g.fill(); circle(g, 3.4, -13, 1.4); g.fill(); }
+  g.lineWidth = 1.6; g.beginPath();
+  if (mood === "sad" || mood === "dizzy") g.arc(0, -6, 3, Math.PI * 1.15, Math.PI * 1.85);
+  else if (mood === "laugh") { g.arc(0, -9, 3.5, 0, Math.PI); g.closePath(); g.fillStyle = "#c1121f"; g.fill(); }
+  else g.arc(0, -9.5, 3, Math.PI * .15, Math.PI * .85);
+  g.stroke(); g.lineWidth = 2.6;
+  // hats
+  const hat = look.hat;
+  if (hat === "hard" || hat === "helmet") {
+    g.beginPath(); g.arc(0, -15, 9.5, Math.PI, 0); g.closePath(); g.fillStyle = "#ffd60a"; g.fill(); g.stroke();
+    g.beginPath(); g.moveTo(-12, -15); g.lineTo(12, -15); g.stroke();
+    if (hat === "helmet") { rr(g, -3, -24, 6, 7, 2); g.fillStyle = "#e63946"; g.fill(); g.stroke(); }
+  } else if (hat === "cap") {
+    g.beginPath(); g.arc(0, -15, 9, Math.PI, 0); g.closePath(); g.fillStyle = "#1d3a8a"; g.fill(); g.stroke();
+    rr(g, -10, -17, 20, 4, 2); g.fill(); g.stroke(); circle(g, 0, -20, 2.2); g.fillStyle = "#ffd60a"; g.fill();
+  } else if (hat === "doc") {
+    rr(g, -8, -24, 16, 7, 3); g.fillStyle = "#fff"; g.fill(); g.stroke(); g.fillStyle = "#e63946"; g.fillRect(-1, -23, 2, 5); g.fillRect(-2.5, -21.5, 5, 2);
+  } else if (hat === "beanie") {
+    g.beginPath(); g.arc(0, -16, 8.5, Math.PI, 0); g.closePath(); g.fillStyle = "#2b2d42"; g.fill(); g.stroke(); circle(g, 0, -25, 2.5); g.fillStyle = "#e63946"; g.fill(); g.stroke();
+  } else if (hat === "top") {
+    rr(g, -12, -21, 24, 4, 2); g.fillStyle = INK; g.fill(); rr(g, -7, -38, 14, 18, 2); g.fill(); g.fillStyle = "#e63946"; g.fillRect(-7, -25, 14, 3);
+  }
+  g.restore();
+}
+
+function drawBuilding(g, b, t) {
+  const { x, y, w, h } = b;
+  if (b.type === "park") return drawPark(g, b, t);
+  if (b.type === "landmark") return drawLandmark(g, b, t);
+  // ground shadow
+  g.fillStyle = "rgba(20,15,40,.22)"; g.fillRect(x + 7, y + 7, w, h);
+  const roof = b.broken ? shade(b.roof, -.35) : b.roof;
+  // front wall (gives the slight top-down tilt)
+  g.lineWidth = 3; g.strokeStyle = INK;
+  rr(g, x, y + h - DEPTH, w, DEPTH, 4); g.fillStyle = shade(b.roof, -.4); g.fill(); g.stroke();
+  // windows on wall
+  g.fillStyle = b.fire > 0 ? "#ffbe0b" : "#fff6df";
+  for (let i = 0; i < 4; i++) { rr(g, x + 14 + i * (w - 28) / 3.4, y + h - DEPTH + 6, 14, 10, 2); g.fill(); }
+  // roof
+  rr(g, x, y - DEPTH, w, h, 8); g.fillStyle = roof; g.fill(); g.stroke();
+  g.fillStyle = shade(b.roof, .35); rr(g, x + 8, y - DEPTH + 7, w - 16, 9, 4); g.fill(); // cel highlight
+  g.fillStyle = shade(b.roof, -.12); rr(g, x + 8, y - DEPTH + h - 22, w - 16, 12, 4); g.fill(); // cel shadow band
+  if (b.type === "cafe" || b.type === "shop") { // striped awning
+    for (let i = 0; i < 8; i++) { g.fillStyle = i % 2 ? "#fff6df" : (b.type === "cafe" ? "#e63946" : shade(b.roof, -.3)); g.fillRect(x + i * w / 8, y + h - DEPTH - 12, w / 8, 12); }
+    g.strokeRect(x, y + h - DEPTH - 12, w, 12);
+  }
+  if (b.type === "site") { for (let i = 0; i < 10; i++) { g.fillStyle = i % 2 ? INK : "#ffd60a"; g.fillRect(x + i * w / 10, y + h - DEPTH - 10, w / 10, 10); } }
+  if (b.type === "jail") { g.strokeStyle = INK; g.lineWidth = 4; for (let i = 1; i < 7; i++) { g.beginPath(); g.moveTo(x + i * w / 7, y - DEPTH + 30); g.lineTo(x + i * w / 7, y + h - DEPTH - 20); g.stroke(); } g.lineWidth = 3; }
+  if (b.type === "hospital") { g.fillStyle = "#e63946"; g.fillRect(b.cx - 12, b.cy - DEPTH - 36, 24, 72); g.fillRect(b.cx - 36, b.cy - DEPTH - 12, 72, 24); }
+  if (b.icon && b.type !== "hospital") { g.font = "54px serif"; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(b.icon, b.cx, b.cy - DEPTH); }
+  // loot sparkle
+  if (b.lootable && b.loot && (player.role === "robber" || player.role === "police")) { g.font = "22px serif"; g.textAlign = "center"; g.fillText("💰", x + w - 18, y - DEPTH + 22 + Math.sin(t * 4 + b.col) * 3); }
+  // broken: cracks and planks
+  if (b.broken) {
+    g.strokeStyle = INK; g.lineWidth = 3;
+    g.beginPath(); g.moveTo(x + 20, y - DEPTH + 30); g.lineTo(x + 50, y - DEPTH + 60); g.lineTo(x + 40, y - DEPTH + 90); g.lineTo(x + 70, y - DEPTH + 120);
+    g.moveTo(x + w - 30, y - DEPTH + 20); g.lineTo(x + w - 60, y - DEPTH + 55); g.lineTo(x + w - 45, y - DEPTH + 75); g.stroke();
+    g.save(); g.translate(b.cx, b.cy - DEPTH + 10); g.rotate(-.3); rr(g, -50, -8, 100, 16, 3); g.fillStyle = "#c08552"; g.fill(); g.stroke(); g.restore();
+    g.save(); g.translate(b.cx, b.cy - DEPTH + 10); g.rotate(.35); rr(g, -50, -8, 100, 16, 3); g.fillStyle = "#b07042"; g.fill(); g.stroke(); g.restore();
+    if (b.repair > 0) ring(g, b.cx, b.cy - DEPTH - 40, b.repair / 2, "#ff9f1c");
+  }
+  if (b.steal > 0) ring(g, b.cx, b.cy - DEPTH - 40, b.steal / (b.type === "bank" ? 2.4 : 1.2), "#2b2d42");
+  // fire
+  if (b.fire > 0) drawFire(g, b, t);
+  // name plate when close
+  if (player && Math.hypot(player.x - b.cx, player.y - b.cy) < 330) label(g, b.name, b.cx, y + h + 2, 13);
+}
+function drawFire(g, b, t) {
+  const n = 3 + Math.floor(b.fire / 18), s = .5 + b.fire / 100;
+  for (let i = 0; i < n; i++) {
+    const fx = b.x + 20 + ((i * 53) % (b.w - 40)), fy = b.y - DEPTH + 30 + ((i * 71) % (b.h - 50));
+    const fl = Math.sin(t * 12 + i * 2) * 5;
+    const hgt = (34 + fl) * s, wid = 18 * s;
+    g.beginPath(); g.moveTo(fx - wid, fy); g.quadraticCurveTo(fx - wid * .8, fy - hgt * .6, fx, fy - hgt); g.quadraticCurveTo(fx + wid * .8, fy - hgt * .6, fx + wid, fy); g.closePath();
+    g.fillStyle = "#ff5a36"; g.fill(); g.lineWidth = 2.5; g.strokeStyle = INK; g.stroke();
+    g.beginPath(); g.moveTo(fx - wid * .5, fy); g.quadraticCurveTo(fx - wid * .4, fy - hgt * .4, fx, fy - hgt * .6); g.quadraticCurveTo(fx + wid * .4, fy - hgt * .4, fx + wid * .5, fy); g.closePath();
+    g.fillStyle = "#ffbe0b"; g.fill();
+  }
+  // fire bar
+  const bw = 70; rr(g, b.cx - bw / 2, b.y - DEPTH - 22, bw, 10, 5); g.fillStyle = "#fff6df"; g.fill(); g.lineWidth = 2.5; g.strokeStyle = INK; g.stroke();
+  rr(g, b.cx - bw / 2 + 2, b.y - DEPTH - 20, (bw - 4) * b.fire / 100, 6, 3); g.fillStyle = "#ff5a36"; g.fill();
+}
+function ring(g, x, y, f, col) {
+  g.lineWidth = 7; g.strokeStyle = INK; circle(g, x, y, 14); g.stroke();
+  g.lineWidth = 4; g.strokeStyle = col; g.beginPath(); g.arc(x, y, 14, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * clamp(f, 0, 1)); g.stroke();
+}
+function label(g, text, x, y, size) {
+  g.font = `800 ${size}px Nunito, sans-serif`; g.textAlign = "center"; g.textBaseline = "top";
+  const tw = g.measureText(text).width;
+  rr(g, x - tw / 2 - 6, y, tw + 12, size + 8, 6); g.fillStyle = "#fff6df"; g.fill(); g.lineWidth = 2; g.strokeStyle = INK; g.stroke();
+  g.fillStyle = INK; g.fillText(text, x, y + 4);
+}
+function drawPark(g, b, t) {
+  const { x, y, w, h } = b;
+  rr(g, x + 6, y + 6, w - 12, h - 12, 18); g.fillStyle = "#80c271"; g.fill(); g.lineWidth = 3; g.strokeStyle = INK; g.stroke();
+  g.fillStyle = "#d8c690"; rr(g, x + w / 2 - 14, y + 8, 28, h - 16, 10); g.fill(); rr(g, x + 8, y + h / 2 - 14, w - 16, 28, 10); g.fill();
+  const trees = [[.2, .2], [.8, .2], [.2, .8], [.8, .82], [.33, .62]];
+  for (const [tx, ty] of trees) { g.fillStyle = "rgba(20,15,40,.2)"; circle(g, x + tx * w + 5, y + ty * h + 5, 22); g.fill(); circle(g, x + tx * w, y + ty * h, 22); g.fillStyle = "#3a9d5d"; g.fill(); g.stroke(); circle(g, x + tx * w - 7, y + ty * h - 7, 8); g.fillStyle = "#6fcf7f"; g.fill(); }
+  if (b.name.startsWith("Backwards")) {
+    // a fountain where the water falls UP into a floating bucket
+    const cx = x + w / 2, cy = y + h / 2;
+    circle(g, cx, cy, 30); g.fillStyle = "#8ecae6"; g.fill(); g.stroke();
+    const by = cy - 70 + Math.sin(t * 2) * 4;
+    for (let i = 0; i < 6; i++) { const k = ((t * 1.2 + i / 6) % 1); g.fillStyle = "#4cc9f0"; circle(g, cx + Math.sin(i * 2.1) * 10 * (1 - k), cy - k * 60, 4 * (1 - k * .5)); g.fill(); }
+    g.beginPath(); g.moveTo(cx - 16, by - 10); g.lineTo(cx + 16, by - 10); g.lineTo(cx + 11, by + 12); g.lineTo(cx - 11, by + 12); g.closePath(); g.fillStyle = "#adb5bd"; g.fill(); g.stroke();
+  }
+  if (player && Math.hypot(player.x - b.cx, player.y - b.cy) < 330) label(g, b.name, b.cx, y + h - 26, 13);
+}
+function drawLandmark(g, b, t) {
+  const cx = b.cx, cy = b.cy;
+  g.lineWidth = 3; g.strokeStyle = INK;
+  g.fillStyle = "#cfe8b8"; rr(g, b.x - 20, b.y - 20, b.w + 40, b.h + 40, 20); g.fill(); g.stroke();
+  if (b.code === "D") {
+    const wob = Math.sin(t * 3) * .12;
+    g.save(); g.translate(cx, cy - 10); g.rotate(wob);
+    g.fillStyle = "rgba(20,15,40,.2)"; circle(g, 8, 18, 56); g.fill();
+    circle(g, 0, 0, 56); g.fillStyle = "#e9a86b"; g.fill(); g.stroke();
+    g.beginPath(); g.arc(0, 0, 50, 0, Math.PI * 2); g.fillStyle = "#ff8fab"; g.fill();
+    circle(g, 0, 0, 18); g.fillStyle = "#cfe8b8"; g.fill(); g.stroke();
+    const spr = ["#ffbe0b", "#3a86ff", "#fff", "#06d6a0"];
+    for (let i = 0; i < 14; i++) { const a = i * 2.3, r = 28 + (i * 7) % 18; g.save(); g.translate(Math.cos(a) * r, Math.sin(a) * r); g.rotate(a); g.fillStyle = spr[i % 4]; rr(g, -5, -2, 10, 4, 2); g.fill(); g.restore(); }
+    g.restore();
+  } else if (b.code === "U") {
+    // house standing on its roof
+    g.fillStyle = "rgba(20,15,40,.2)"; g.fillRect(cx - 45, cy - 20, 100, 70);
+    g.beginPath(); g.moveTo(cx - 55, cy - 30); g.lineTo(cx + 55, cy - 30); g.lineTo(cx, cy + 40); g.closePath(); g.fillStyle = "#e63946"; g.fill(); g.stroke();
+    rr(g, cx - 45, cy - 100, 90, 70, 4); g.fillStyle = "#ffd6a5"; g.fill(); g.stroke();
+    rr(g, cx - 12, cy - 100, 24, 30, 3); g.fillStyle = "#8d5524"; g.fill(); g.stroke(); // door at the top
+    rr(g, cx - 38, cy - 70, 18, 16, 2); g.fillStyle = "#8ecae6"; g.fill(); g.stroke(); rr(g, cx + 20, cy - 70, 18, 16, 2); g.fill(); g.stroke();
+    rr(g, cx + 22, cy + 6, 10, 26, 2); g.fillStyle = "#8d99ae"; g.fill(); g.stroke(); // chimney pointing down
+    for (let i = 0; i < 3; i++) { const k = (t * .6 + i / 3) % 1; g.fillStyle = `rgba(200,200,210,${1 - k})`; circle(g, cx + 27, cy + 36 + k * 40, 6 + k * 6); g.fill(); }
+  } else if (b.code === "T") {
+    const sq = Math.max(0, 1 - Math.abs((game ? game.sneezeT : 9) - .3) * 3);
+    g.fillStyle = "rgba(20,15,40,.2)"; g.fillRect(cx - 26, cy - 60, 64, 110);
+    rr(g, cx - 32, cy - 70, 64, 110, 6); g.fillStyle = "#b08968"; g.fill(); g.stroke();
+    g.beginPath(); g.moveTo(cx - 40, cy - 70); g.lineTo(cx, cy - 115 - sq * 10); g.lineTo(cx + 40, cy - 70); g.closePath(); g.fillStyle = "#6a4c93"; g.fill(); g.stroke();
+    circle(g, cx, cy - 35, 24); g.fillStyle = "#fff6df"; g.fill(); g.stroke();
+    const hh = t * .5, mm = t * 3; g.lineWidth = 3;
+    g.beginPath(); g.moveTo(cx, cy - 35); g.lineTo(cx + Math.cos(hh) * 12, cy - 35 + Math.sin(hh) * 12); g.moveTo(cx, cy - 35); g.lineTo(cx + Math.cos(mm) * 18, cy - 35 + Math.sin(mm) * 18); g.stroke();
+    // nose!
+    circle(g, cx, cy + 4, 9 + sq * 5); g.fillStyle = "#ff8fab"; g.fill(); g.stroke();
+  } else if (b.code === "L") {
+    // beam
+    const a = t * 1.5; g.save(); g.translate(cx + 10, cy - 70); g.rotate(a);
+    g.beginPath(); g.moveTo(0, 0); g.lineTo(260, -40); g.lineTo(260, 40); g.closePath(); g.fillStyle = "rgba(255,240,150,.25)"; g.fill(); g.restore();
+    g.fillStyle = "rgba(20,15,40,.2)"; g.beginPath(); g.ellipse(cx + 8, cy + 30, 62, 26, 0, 0, Math.PI * 2); g.fill();
+    g.beginPath(); g.ellipse(cx, cy + 20, 60, 34, 0, 0, Math.PI * 2); g.fillStyle = "#ffd60a"; g.fill(); g.stroke();
+    circle(g, cx + 10, cy - 30, 30); g.fill(); g.stroke();
+    g.beginPath(); g.ellipse(cx + 42, cy - 24, 16, 8, 0, 0, Math.PI * 2); g.fillStyle = "#f77f00"; g.fill(); g.stroke();
+    circle(g, cx + 18, cy - 38, 4); g.fillStyle = INK; g.fill();
+    rr(g, cx - 2, cy - 92, 24, 30, 4); g.fillStyle = "#e63946"; g.fill(); g.stroke();
+    circle(g, cx + 10, cy - 70, 7); g.fillStyle = "#fff3b0"; g.fill(); g.stroke();
+  }
+  label(g, b.name, cx, b.y + b.h + 4, 13);
+}
+
+function drawCitizen(g, c, t) {
+  if (c.injured) {
+    g.save(); g.translate(c.x, c.y); g.rotate(Math.PI / 2);
+    drawPerson(g, 0, 0, .85, c.look, "sad"); g.restore();
+    const bob = Math.sin(t * 5) * 3;
+    circle(g, c.x, c.y - 30 + bob, 11); g.fillStyle = "#fff"; g.fill(); g.lineWidth = 2.5; g.strokeStyle = INK; g.stroke();
+    g.fillStyle = "#e63946"; g.fillRect(c.x - 2, c.y - 37 + bob, 4, 14); g.fillRect(c.x - 7, c.y - 32 + bob, 14, 4);
+    if (c.heal > 0) ring(g, c.x + 26, c.y - 30, c.heal / 1.2, "#ff006e");
+  } else {
+    const step = Math.sin(t * 10 + c.lane) * 1.5;
+    drawPerson(g, c.x, c.y + step, .85, c.look);
+  }
+}
+function drawAgent(g, a, t) {
+  const L = ROLES[a.role].look;
+  const me = a === player;
+  if (me && game.alive) {
+    const pr = 26 + Math.sin(t * 5) * 3;
+    g.lineWidth = 3; g.strokeStyle = a.invuln > 0 && Math.floor(t * 8) % 2 ? "#ff5a36" : "#fff6df";
+    g.beginPath(); g.ellipse(a.x, a.y + 10, pr, pr * .45, 0, 0, Math.PI * 2); g.stroke();
+  }
+  const bob = a.moving || (a.ai && a.path.length) ? Math.abs(Math.sin(t * 12)) * -2 : 0;
+  drawPerson(g, a.x, a.y + bob, 1.15, L, a.jailed > 0 ? "sad" : "happy");
+  if (a.carrying) { g.font = "18px serif"; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText("💰".repeat(a.carrying), a.x, a.y - 44); }
+  if (a.jailed > 0) { g.strokeStyle = "#8d99ae"; g.lineWidth = 4; for (let i = -2; i <= 2; i++) { g.beginPath(); g.moveTo(a.x + i * 8, a.y - 36); g.lineTo(a.x + i * 8, a.y + 16); g.stroke(); } }
+  if (a.prog > 0 && a.working && a.role !== "builder") ring(g, a.x + 28, a.y - 28, a.prog, a.role === "robber" ? "#ffc93c" : "#21c29b");
+  const tag = me ? (game.alive ? "YOU" : "AI") : ROLES[a.role].name;
+  g.font = `900 ${me ? 13 : 11}px Nunito, sans-serif`; g.textAlign = "center"; g.textBaseline = "middle";
+  g.lineWidth = 3.5; g.strokeStyle = INK; g.strokeText(tag, a.x, a.y + 30); g.fillStyle = me ? "#ffc93c" : "#fff6df"; g.fillText(tag, a.x, a.y + 30);
+}
+
+function render() {
+  const g = ctx, t = game.t;
+  g.setTransform(DPR, 0, 0, DPR, 0, 0);
+  g.fillStyle = "#2a2340"; g.fillRect(0, 0, VW, VH);
+  g.save();
+  g.translate(VW / 2, VH / 2); g.scale(ZOOM, ZOOM); g.translate(-cam.x, -cam.y);
+  // roads
+  g.fillStyle = "#4b4560"; g.fillRect(0, 0, W, H);
+  g.strokeStyle = "rgba(255,246,223,.5)"; g.lineWidth = 4; g.setLineDash([22, 18]);
+  for (let i = 0; i <= COLS; i++) { g.beginPath(); g.moveTo(roadX(i), 0); g.lineTo(roadX(i), H); g.stroke(); }
+  for (let j = 0; j <= ROWS; j++) { g.beginPath(); g.moveTo(0, roadY(j)); g.lineTo(W, roadY(j)); g.stroke(); }
+  g.setLineDash([]);
+  // sidewalks
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) { rr(g, lotX(c), lotY(r), LOT, LOT, 10); g.fillStyle = "#d9cbb0"; g.fill(); g.lineWidth = 3; g.strokeStyle = "#b8a88a"; g.stroke(); }
+  // exits
+  for (const e of exits()) { label(g, "CITY EXIT", clamp(e.x, 50, W - 50), clamp(e.y - 12, 10, H - 40), 12); }
+  // draw buildings + people sorted by depth
+  const list = [];
+  for (const b of buildings) list.push({ y: b.y + b.h, f: () => drawBuilding(g, b, t) });
+  for (const c of citizens) list.push({ y: c.y, f: () => drawCitizen(g, c, t) });
+  for (const a of agents) list.push({ y: a.y + 1, f: () => drawAgent(g, a, t) });
+  list.sort((a, b) => a.y - b.y); for (const d of list) d.f();
+  // particles
+  for (const q of parts) {
+    const k = 1 - q.t / q.life; g.globalAlpha = Math.max(0, k);
+    if (q.smoke) { circle(g, q.x, q.y, q.r * (1.5 - k * .5)); g.fillStyle = q.c; g.fill(); }
+    else if (q.heart) { g.font = "16px serif"; g.textAlign = "center"; g.fillText("❤️", q.x, q.y); }
+    else if (q.star) { g.font = "16px serif"; g.textAlign = "center"; g.fillText("⭐", q.x, q.y); }
+    else if (q.drop) { circle(g, q.x, q.y, 4); g.fillStyle = q.c; g.fill(); }
+    else { g.fillStyle = q.c; g.save(); g.translate(q.x, q.y); g.rotate(q.t * 8); g.fillRect(-4, -2.5, 8, 5); g.restore(); }
+  }
+  g.globalAlpha = 1;
+  // floating words
+  for (const q of pops) {
+    const k = q.t / 1.6; g.globalAlpha = 1 - Math.max(0, k - .6) / .4;
+    g.font = `${q.big ? 26 : q.small ? 14 : 20}px "Lilita One", sans-serif`; g.textAlign = "center"; g.textBaseline = "middle";
+    g.lineWidth = 5; g.strokeStyle = INK; g.strokeText(q.text, q.x, q.y - k * 50); g.fillStyle = q.color; g.fillText(q.text, q.x, q.y - k * 50);
+  }
+  g.globalAlpha = 1;
+  // target marker
+  const tg = game.alive && roleTarget();
+  if (tg && tg.pt) { const bob = Math.sin(t * 6) * 6; g.fillStyle = "#ffc93c"; g.strokeStyle = INK; g.lineWidth = 3; g.beginPath(); g.moveTo(tg.pt.x, tg.pt.y - 70 + bob); g.lineTo(tg.pt.x - 14, tg.pt.y - 94 + bob); g.lineTo(tg.pt.x + 14, tg.pt.y - 94 + bob); g.closePath(); g.fill(); g.stroke(); }
+  g.restore();
+  // edge arrow toward target
+  if (tg && tg.pt) {
+    const sx = (tg.pt.x - cam.x) * ZOOM + VW / 2, sy = (tg.pt.y - cam.y) * ZOOM + VH / 2;
+    const m = 40;
+    if (sx < m || sx > VW - m || sy < 120 || sy > VH - m) {
+      const ang = Math.atan2(sy - VH / 2, sx - VW / 2);
+      const top = VW < 600 ? 200 : 150, ax = clamp(sx, m, VW - m), ay = clamp(sy, top, VH - m - 100);
+      g.setTransform(DPR, 0, 0, DPR, 0, 0); g.save(); g.translate(ax, ay); g.rotate(ang);
+      g.beginPath(); g.moveTo(22, 0); g.lineTo(-12, -16); g.lineTo(-4, 0); g.lineTo(-12, 16); g.closePath();
+      g.fillStyle = "#ffc93c"; g.fill(); g.lineWidth = 3; g.strokeStyle = INK; g.stroke(); g.restore();
+    }
+  }
+  drawMinimap(g);
+}
+function drawMinimap(g) {
+  const mw = VW < 600 ? 110 : 160, sc = mw / W, mh = H * sc;
+  const x0 = VW - mw - Math.max(10, 10), y0 = (VW < 600 ? 92 : 10) + (parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--sat")) || 0);
+  g.setTransform(DPR, 0, 0, DPR, 0, 0);
+  rr(g, x0 - 4, y0 - 4, mw + 8, mh + 8, 8); g.fillStyle = "#fff6df"; g.fill(); g.lineWidth = 3; g.strokeStyle = INK; g.stroke();
+  g.fillStyle = "#4b4560"; g.fillRect(x0, y0, mw, mh);
+  for (const b of buildings) {
+    g.fillStyle = b.fire > 0 ? "#ff5a36" : b.broken ? "#8d99ae" : b.type === "park" ? "#80c271" : b.type === "landmark" ? "#ffd60a" : "#d9cbb0";
+    g.fillRect(x0 + b.x * sc, y0 + b.y * sc, b.w * sc, b.h * sc);
+  }
+  for (const c of citizens) if (c.injured) { g.fillStyle = "#ff006e"; g.fillRect(x0 + c.x * sc - 2, y0 + c.y * sc - 2, 4, 4); }
+  for (const a of agents) { g.fillStyle = a === player ? "#ffc93c" : a.role === "robber" ? "#111" : ROLES[a.role].look.body; circle(g, x0 + a.x * sc, y0 + a.y * sc, a === player ? 4 : 3); g.fill(); if (a === player) { g.lineWidth = 1.5; g.stroke(); } }
+}
+
+// idle background on menus: a slowly drifting city
+let idleCity = false;
+function renderIdle(ts) {
+  if (!idleCity) { makeCity(); makeCitizens(20); idleCity = true; }
+  const t = ts / 1000;
+  game = { t, len: 1, alive: false, sneezeT: 9 }; player = { x: -9999, y: -9999, role: "firefighter" };
+  cam.x = W / 2 + Math.sin(t * .05) * 500; cam.y = H / 2 + Math.cos(t * .04) * 300;
+  agents = [];
+  render();
+  game = null;
+}
+
+// ---------- screens ----------
+const screens = ["menu", "intro", "pause", "over", "house", "score"];
+function show(id) { for (const s of screens) $(s).hidden = s !== id; const inGame = !id && game && game.running; $("hud").hidden = !inGame && !(id === null); $("touch").hidden = !inGame; }
+function inPlay(on) { $("hud").hidden = !on; $("touch").hidden = !on; }
+
+function buildMenu() {
+  const roles = $("roles"); roles.innerHTML = "";
+  for (const r of ROLE_ORDER) {
+    const b = document.createElement("button"); b.className = "role"; b.id = "role-" + r; b.setAttribute("aria-pressed", save.role === r);
+    const c = document.createElement("canvas"); c.width = 128; c.height = 128; const g = c.getContext("2d"); drawPerson(g, 64, 76, 2.4, ROLES[r].look);
+    b.append(c); const n = document.createElement("span"); n.textContent = ROLES[r].name; b.append(n); const s = document.createElement("small"); s.textContent = ROLES[r].blurb; b.append(s);
+    b.onclick = () => { save.role = r; persist(); buildMenu(); };
+    roles.append(b);
+  }
+  seg("lenSeg", [[3, "3 min"], [5, "5 min"], [10, "10 min"]], "len");
+  seg("lvlSeg", [[0, "Calm"], [1, "Normal"], [2, "Wild"]], "lvl");
+  seg("ctlSeg", [["stick", "Joystick"], ["tap", "Tap to move"]], "ctl");
+  $("menuCoins").textContent = `🪙 ${save.coins} coins saved`;
+}
+function seg(id, opts, key) {
+  const el = $(id); el.innerHTML = "";
+  for (const [v, l] of opts) { const b = document.createElement("button"); b.textContent = l; b.id = `${id}-${v}`; b.setAttribute("aria-pressed", save[key] === v); b.onclick = () => { save[key] = v; persist(); seg(id, opts, key); }; el.append(b); }
+}
+
+const HOWTO = {
+  firefighter: ["Fires pop up all over the city. Find them with the yellow arrow.", "Stand next to a burning building and hold ACTION to spray water.", "Faster = more coins. Under 12 seconds is PERFECT!", `If ${LIMIT} buildings are burning at once, you lose a life.`],
+  police: ["Two robbers are loose. Chase them with the yellow arrow.", "Get close and press ACTION to catch them and send them to jail.", "Catch them before they steal anything for a PERFECT catch.", "If a robber escapes the city with 3 stolen things, you lose a life."],
+  doctor: ["People get hurt (bananas, fires, tripping). Find them with the yellow arrow.", "Stand next to a hurt person and hold ACTION to heal them.", "Faster = more coins. Under 12 seconds is PERFECT!", `If ${LIMIT} people are hurt at once, you lose a life.`],
+  builder: ["Buildings crack, burn and break. Find them with the yellow arrow.", "Stand next to a broken building and hold ACTION to fix it.", "Faster = more coins. Under 15 seconds is PERFECT!", `If ${LIMIT} buildings are broken at once, you lose a life.`],
+  robber: ["Find shops, cafes and flats with a 💰 and hold ACTION to grab the loot. The bank pays the most!", "Press START FIRE (or E) next to a building to cause chaos.", "With 3 things, run to a CITY EXIT for a getaway bonus.", "Watch out for the Policeman! If he catches you, you lose a life."],
+};
+
+function startShift() {
+  audio();
+  newGame();
+  const r = save.role;
+  $("introTitle").textContent = `You are the ${ROLES[r].name}`;
+  $("introList").innerHTML = ""; for (const l of HOWTO[r]) { const li = document.createElement("li"); li.textContent = l; $("introList").append(li); }
+  $("act").textContent = ROLES[r].act; $("act2").hidden = r !== "robber";
+  $("keyhint").textContent = r === "robber" ? "Move: arrows/WASD · Grab: Space · Fire: E" : "Move: arrows/WASD · Action: Space";
+  cam.x = player.x; cam.y = player.y;
+  show("intro");
+}
+function go() { game.running = true; game.paused = false; for (const s of screens) $(s).hidden = true; inPlay(true); hudCache = {}; banner("GO!"); }
+function togglePause() {
+  if (!game || !game.running || !game.alive) return;
+  game.paused = !game.paused; if (game.paused) { show("pause"); inPlay(false); } else { $("pause").hidden = true; inPlay(true); }
+}
+function gameOver() {
+  game.alive = false; player.ai = true; player.path = []; input.act = false;
+  SFX.over();
+  game.paused = true; inPlay(false);
+  $("overTitle").textContent = "Out of lives!";
+  $("overText").textContent = `You keep all ${game.coinsShift} coins you earned this shift. An AI ${ROLES[player.role].name} takes over your job so the city keeps going.`;
+  show("over");
+  playGag(player.role);
+}
+function endShift() {
+  game.running = false; inPlay(false);
+  const s = game.stats, R = player.role;
+  $("scoreLede").textContent = `${game.alive ? "You made it through the whole shift!" : "The AI finished the shift for you."} You earned ${game.coinsShift} coins as the ${ROLES[R].name}.`;
+  const rows = [["Coins earned", game.coinsShift], ["PERFECT jobs", s.perfects]];
+  if (R === "firefighter") rows.push(["Fires put out", s.fires]);
+  if (R === "doctor") rows.push(["People healed", s.healed]);
+  if (R === "builder") rows.push(["Buildings fixed", s.fixed]);
+  if (R === "police") rows.push(["Robbers caught", s.caught]);
+  if (R === "robber") rows.push(["Things stolen", s.stolen], ["Getaways", s.getaways]);
+  rows.push(["Fires in the city", s.cityFires], ["People hurt", s.cityHurt], ["Things broken", s.cityBroken]);
+  $("stats").innerHTML = ""; for (const [k, v] of rows) { const d = document.createElement("div"); d.className = "stat"; d.innerHTML = `<b>${v}</b><span>${k}</span>`; $("stats").append(d); }
+  show("score");
+}
+
+// ---------- game-over gags ----------
+let gagRAF = 0;
+function playGag(role) {
+  const c = $("gag"), g = c.getContext("2d"), t0 = performance.now();
+  cancelAnimationFrame(gagRAF);
+  const step = () => {
+    const t = (performance.now() - t0) / 1000;
+    g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, 720, 480);
+    g.fillStyle = "#bde0fe"; g.fillRect(0, 0, 720, 480); g.fillStyle = "#d9cbb0"; g.fillRect(0, 360, 720, 120);
+    g.lineWidth = 4; g.strokeStyle = INK; g.beginPath(); g.moveTo(0, 360); g.lineTo(720, 360); g.stroke();
+    const L = ROLES[role].look;
+    if (role === "builder") {
+      const hit = .8, by = t < hit ? -60 + (t / hit) ** 2 * 270 : 210;
+      drawPerson(g, 360, 300, 5, L, t < hit ? "happy" : "dizzy");
+      g.save(); g.translate(360, by); g.rotate(t < hit ? t * 4 : .2); rr(g, -40, -18, 80, 36, 4); g.fillStyle = "#c1440e"; g.fill(); g.lineWidth = 4; g.stroke(); g.restore();
+      if (t > hit) { for (let i = 0; i < 4; i++) { const a = t * 4 + i * Math.PI / 2; g.font = "36px serif"; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText("⭐", 360 + Math.cos(a) * 90, 175 + Math.sin(a) * 26); } caption(g, "BONK!"); }
+    } else if (role === "robber") {
+      g.fillStyle = "#8d99ae"; g.fillRect(0, 0, 720, 360);
+      g.strokeStyle = "rgba(31,24,48,.25)"; g.lineWidth = 3; for (let y = 0; y < 360; y += 40) for (let x = (y / 40) % 2 * 40; x < 720; x += 80) g.strokeRect(x, y, 80, 40);
+      drawPerson(g, 360, 300, 5, L, "sad");
+      const k = clamp((t - .4) / .6, 0, 1), barB = -20 + k * 400;
+      g.strokeStyle = "#495057"; g.lineWidth = 14; for (let x = 100; x <= 620; x += 65) { g.beginPath(); g.moveTo(x, -20); g.lineTo(x, barB); g.stroke(); }
+      g.lineWidth = 4; g.strokeStyle = INK; for (let x = 100; x <= 620; x += 65) { g.strokeRect(x - 7, -20, 14, barB + 20); }
+      if (k >= 1) caption(g, "CLANG!");
+    } else if (role === "police") {
+      drawPerson(g, 260, 310, 4.2, L, "sad");
+      drawPerson(g, 480, 290, 5, { body: "#9b5de5", hat: "top", skin: "#f1c27d" }, "sad");
+      const wag = Math.sin(t * 10) * .5; g.save(); g.translate(430, 280); g.rotate(-1 + wag); g.lineWidth = 12; g.strokeStyle = INK; g.beginPath(); g.moveTo(0, 0); g.lineTo(0, -70); g.stroke(); g.lineWidth = 7; g.strokeStyle = "#f1c27d"; g.stroke(); g.restore();
+      bubble(g, 520, 70, "Tsk tsk tsk!");
+      drawPerson(g, 110, 180 + Math.abs(Math.sin(t * 8)) * -12, 2.4, ROLES.robber.look, "laugh");
+      g.font = "30px 'Lilita One', sans-serif"; g.textAlign = "center"; g.fillStyle = INK; g.fillText("HA HA!", 110, 90 + Math.sin(t * 8) * 5);
+    } else if (role === "doctor") {
+      for (let i = 0; i < 3; i++) { const tap = Math.abs(Math.sin(t * 6 + i)) * 6; drawPerson(g, 520 + i * 70, 330 - tap, 2.2, { body: ["#ff006e", "#3a86ff", "#06d6a0"][i], hair: "#6f4518" }, "sad"); g.font = "26px serif"; g.textAlign = "center"; g.fillText("⌚", 520 + i * 70, 250); }
+      drawPerson(g, 280, 300, 5, L, "sad");
+      const n = Math.floor(clamp(t / 2, 0, 1) * 9);
+      for (let i = 0; i < n; i++) { g.save(); g.translate(280, 330 - i * 26); g.rotate((i % 2 ? -1 : 1) * .12); rr(g, -66, -10, 132, 20, 6); g.fillStyle = "#fff"; g.fill(); g.lineWidth = 3; g.strokeStyle = INK; g.stroke(); g.restore(); }
+      if (n >= 9) { g.fillStyle = INK; circle(g, 264, 240, 6); g.fill(); circle(g, 296, 240, 6); g.fill(); caption(g, "MUMMY DOCTOR!"); }
+      g.save(); g.translate(150 + Math.min(t, 1) * 60, 350); rr(g, -20, -20, 40, 40, 20); g.fillStyle = "#fff"; g.fill(); g.stroke(); g.restore();
+    } else if (role === "firefighter") {
+      for (let i = 0; i < 6; i++) { const fx = 80 + i * 115, f = Math.sin(t * 10 + i) * 14, hh = 220 + f + (i % 2) * 40; g.beginPath(); g.moveTo(fx - 70, 360); g.quadraticCurveTo(fx - 50, 360 - hh * .6, fx, 360 - hh); g.quadraticCurveTo(fx + 50, 360 - hh * .6, fx + 70, 360); g.closePath(); g.fillStyle = "#ff5a36"; g.fill(); g.lineWidth = 4; g.strokeStyle = INK; g.stroke(); g.beginPath(); g.moveTo(fx - 35, 360); g.quadraticCurveTo(fx - 25, 360 - hh * .35, fx, 360 - hh * .55); g.quadraticCurveTo(fx + 25, 360 - hh * .35, fx + 35, 360); g.closePath(); g.fillStyle = "#ffbe0b"; g.fill(); }
+      drawPerson(g, 360, 300, 5, L, "sad");
+      g.lineWidth = 14; g.strokeStyle = INK; g.beginPath(); g.moveTo(400, 330); g.bezierCurveTo(520, 360, 540, 160, 430, 170); g.stroke(); g.lineWidth = 8; g.strokeStyle = "#e9c46a"; g.stroke();
+      for (let i = 0; i < 18; i++) { const k = (t * 2 + i / 18) % 1; g.fillStyle = "#4cc9f0"; circle(g, 430 - k * 70 + Math.sin(i) * 8, 170 + k * 10 + Math.cos(i * 3) * 10, 7); g.fill(); }
+      for (let i = 0; i < 4; i++) { g.fillStyle = "#4cc9f0"; circle(g, 330 + i * 18, 260 + ((t * 120 + i * 30) % 60), 5); g.fill(); }
+      caption(g, "SPLOOSH!");
+    }
+    if (t < 6 && !$("over").hidden) gagRAF = requestAnimationFrame(step);
+  };
+  step();
+}
+function caption(g, text) { g.font = "64px 'Lilita One', sans-serif"; g.textAlign = "center"; g.textBaseline = "middle"; g.lineWidth = 10; g.strokeStyle = INK; g.strokeText(text, 360, 60); g.fillStyle = "#ffc93c"; g.fillText(text, 360, 60); }
+function bubble(g, x, y, text) { g.font = "30px 'Lilita One', sans-serif"; const w = g.measureText(text).width + 30; rr(g, x - w / 2, y - 28, w, 56, 20); g.fillStyle = "#fff"; g.fill(); g.lineWidth = 4; g.strokeStyle = INK; g.stroke(); g.textAlign = "center"; g.textBaseline = "middle"; g.fillStyle = INK; g.fillText(text, x, y); }
+
+// ---------- house ----------
+const SHOP = [
+  { id: "plant", e: "🪴", n: "Plant", p: 15 }, { id: "lamp", e: "💡", n: "Lamp", p: 25 }, { id: "art", e: "🖼️", n: "Painting", p: 30 },
+  { id: "sofa", e: "🛋️", n: "Comfy sofa", p: 40 }, { id: "guitar", e: "🎸", n: "Guitar", p: 45 }, { id: "trophy", e: "🏆", n: "Trophy shelf", p: 60 },
+  { id: "bunk", e: "🛏️", n: "Bunk bed", p: 70 }, { id: "tv", e: "📺", n: "Huge TV", p: 80 }, { id: "game", e: "🎮", n: "Game corner", p: 90 },
+  { id: "fish", e: "🐠", n: "Fish tank", p: 100 }, { id: "dino", e: "🦖", n: "Dino statue", p: 120 }, { id: "rocket", e: "🚀", n: "Rocket bed", p: 160 },
+  { id: "slide", e: "🛝", n: "Indoor slide", p: 200 }, { id: "pool", e: "🏊", n: "Ball pit", p: 250 },
+];
+const SIZES = [{ cols: 4, rows: 3, n: "Small house" }, { cols: 5, rows: 4, n: "Bigger house", p: 150 }, { cols: 6, rows: 5, n: "Mansion", p: 400 }];
+function renderHouse() {
+  $("houseCoins").textContent = `🪙 ${save.coins} coins`;
+  const S = SIZES[save.size], room = $("room");
+  room.style.gridTemplateColumns = `repeat(${S.cols},1fr)`; room.innerHTML = "";
+  const owned = save.owned.map(id => SHOP.find(s => s.id === id)).filter(Boolean);
+  for (let i = 0; i < S.cols * S.rows; i++) { const d = document.createElement("div"); d.className = "tile" + (owned[i] ? " full" : ""); d.textContent = owned[i] ? owned[i].e : ""; room.append(d); }
+  const shop = $("shop"); shop.innerHTML = "";
+  const full = owned.length >= S.cols * S.rows;
+  for (const it of SHOP) {
+    const has = save.owned.includes(it.id);
+    const b = document.createElement("button"); b.className = "item" + (has ? " owned" : ""); b.id = "shop-" + it.id;
+    b.innerHTML = `<span class="e">${it.e}</span><span>${it.n}</span><span>${has ? "In your house" : "🪙 " + it.p}</span>`;
+    b.disabled = has || save.coins < it.p || full;
+    b.onclick = () => { if (save.coins >= it.p && !has) { save.coins -= it.p; save.owned.push(it.id); persist(); SFX.great(); renderHouse(); } };
+    shop.append(b);
+  }
+  const nx = SIZES[save.size + 1];
+  if (nx) {
+    const b = document.createElement("button"); b.className = "item"; b.id = "shop-expand";
+    b.innerHTML = `<span class="e">🏡</span><span>Grow to ${nx.n}</span><span>🪙 ${nx.p}</span>`; b.disabled = save.coins < nx.p;
+    b.onclick = () => { if (save.coins >= nx.p) { save.coins -= nx.p; save.size++; persist(); SFX.perfect(); renderHouse(); } };
+    shop.append(b);
+  }
+}
+function openHouse(context) {
+  renderHouse();
+  const btns = $("houseBtns"); btns.innerHTML = "";
+  const note = $("houseNote");
+  if (context === "out") {
+    note.hidden = false;
+    const w = document.createElement("button"); w.className = "big"; w.textContent = "Watch the city"; w.onclick = () => { game.paused = false; for (const s of screens) $(s).hidden = true; $("hud").hidden = false; }; btns.append(w);
+    game.paused = false; // the city keeps going while you decorate
+  } else {
+    note.hidden = true;
+    const b = document.createElement("button"); b.className = "big"; b.textContent = "Back"; b.onclick = () => { buildMenu(); show("menu"); }; btns.append(b);
+  }
+  show("house");
+  if (context === "out") houseTick();
+}
+function houseTick() {
+  if ($("house").hidden || !game || !game.running) return;
+  const left = Math.max(0, game.len - game.t);
+  $("houseNote").textContent = `An AI ${ROLES[player.role].name} is doing your job. The next shift starts in ${Math.floor(left / 60)}:${String(Math.floor(left % 60)).padStart(2, "0")}.`;
+  $("houseCoins").textContent = `🪙 ${save.coins} coins`;
+  setTimeout(houseTick, 500);
+}
+
+// ---------- wire up ----------
+$("playBtn").onclick = startShift;
+$("goBtn").onclick = go;
+$("homeBtn").onclick = () => openHouse("menu");
+$("pauseBtn").onclick = togglePause;
+$("resumeBtn").onclick = togglePause;
+$("quitBtn").onclick = () => { game.paused = false; endShift(); };
+$("overHome").onclick = () => { cancelAnimationFrame(gagRAF); openHouse("out"); };
+$("againBtn").onclick = startShift;
+$("scoreHome").onclick = () => openHouse("menu");
+$("scoreMenu").onclick = () => { game = null; idleCity = false; buildMenu(); show("menu"); };
+document.addEventListener("visibilitychange", () => { if (document.hidden && game && game.running && !game.paused && game.alive) togglePause(); });
+buildMenu();
+show("menu");
+requestAnimationFrame(frame);
+window.__cc = { get game() { return game; }, get player() { return player; }, buildings: () => buildings, citizens: () => citizens };
+})();
+</script>
+</body></html>
